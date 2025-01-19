@@ -1,0 +1,4 @@
+Cython==3.0.11
+numpy==2.2.1
+scipy==1.15.1
+pandas==2.2.3

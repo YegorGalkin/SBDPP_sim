@@ -1,0 +1,6 @@
+/build
+/.idea
+/venv
+*.pyd
+*.html
+/simulation/grid_1d_interface.cpp
