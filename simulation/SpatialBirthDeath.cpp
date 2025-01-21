@@ -1,12 +1,119 @@
 /**
  * \file SpatialBirthDeath.cpp
- * \brief Source file for the spatial birth-death point process simulator.
- *
+ * \brief Example refactored source for a spatial birth-death point process,
+ *        using spawn_at / kill_at instead of placeInitialPopulations / computeInitialDeathRates.
  *
  * \date 2025-01-20
  */
 
+#include <iostream>
+#include <cmath>
+#include <random>
+#include <vector>
+#include <array>
+#include <chrono>
+#include <algorithm>  // for std::max, std::min
 #include "SpatialBirthDeath.h"
+
+/**
+ * A helper function that linearly interpolates `gdat` at point `x`,
+ * assuming xgdat is the sorted set of x-values.
+ * Example usage: linearInterpolate(xVals, yVals, x).
+ */
+double linearInterpolate(const std::vector<double> &xgdat,
+                         const std::vector<double> &gdat,
+                         double x)
+{
+    // handle boundary
+    if (x <= xgdat.front()) {
+        return gdat.front();
+    }
+    if (x >= xgdat.back()) {
+        return gdat.back();
+    }
+
+    // find interval by binary search or manual
+    // For simplicity, we do a linear scan here (not efficient for large vectors).
+    for (size_t i = 0; i < xgdat.size()-1; i++) {
+        double x0 = xgdat[i];
+        double x1 = xgdat[i+1];
+        if (x >= x0 && x <= x1) {
+            double y0 = gdat[i];
+            double y1 = gdat[i+1];
+            // fraction
+            double t = (x - x0)/(x1 - x0);
+            return (1.0 - t)*y0 + t*y1;
+        }
+    }
+    // fallback (should never reach if we handle boundary above)
+    return gdat.back();
+}
+
+/**
+ * Euclidean distance for DIM dimensions, with optional periodic wrapping.
+ */
+template<int DIM>
+double distancePeriodic(const std::array<double,DIM> &a,
+                        const std::array<double,DIM> &b,
+                        const std::array<double,DIM> &L,
+                        bool periodic)
+{
+    double sumSq = 0.0;
+    for (int i = 0; i < DIM; i++) {
+        double diff = a[i] - b[i];
+        if (periodic) {
+            // wrap into [-L/2, L/2]
+            if      (diff >  0.5*L[i]) diff -= L[i];
+            else if (diff < -0.5*L[i]) diff += L[i];
+        }
+        sumSq += diff*diff;
+    }
+    return std::sqrt(sumSq);
+}
+
+/**
+ * A small function to iterate over neighbor cells in a hypercubic domain,
+ * given a cull-range for each dimension.
+ * It calls `callback(neighborIndex)` for each neighbor index in the domain.
+ */
+template<int DIM, typename F>
+void forNeighbors(const std::array<int,DIM> &centerIdx,
+                  const std::array<int,DIM> &range,
+                  F &&callback)
+{
+    // We do a recursive or iterative approach:
+    std::array<int,DIM> idx;
+    // We'll do a simple "nested for" approach by building the loops recursively:
+    // In real code you'd do something dimension-agnostic.
+    // Here's a dimension-based unrolling for up to 3D. (Pseudocode for general DIM.)
+    if constexpr (DIM == 1) {
+        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
+            idx[0] = i;
+            callback(idx);
+        }
+    }
+    else if constexpr (DIM == 2) {
+        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
+            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; j++) {
+                idx[0] = i;
+                idx[1] = j;
+                callback(idx);
+            }
+        }
+    }
+    else if constexpr (DIM == 3) {
+        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
+            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; j++) {
+                for (int k = centerIdx[2] - range[2]; k <= centerIdx[2] + range[2]; k++) {
+                    idx[0] = i;
+                    idx[1] = j;
+                    idx[2] = k;
+                    callback(idx);
+                }
+            }
+        }
+    }
+}
 
 //============================================================
 //  Implementation of Grid<DIM> members
@@ -38,10 +145,11 @@ Grid<DIM>::Grid(int M_,
 {
     init_time = std::chrono::system_clock::now();
 
-    // 1) Copy rates
-    b = birthRates;
-    d = deathRates;
+    // 1) Copy baseline birth & death for each species
+    b = birthRates;  // size M
+    d = deathRates;  // size M
 
+    // 2) ddMatrix is MxM, stored in row-major as a vector of length M*M
     dd.resize(M);
     for (int s1=0; s1<M; s1++) {
         dd[s1].resize(M);
@@ -50,11 +158,11 @@ Grid<DIM>::Grid(int M_,
         }
     }
 
-    // 2) Copy birth kernel
-    birth_x = birthX;
-    birth_y = birthY;
+    // 3) Store birth kernel lookups for each species
+    birth_x = birthX; // birth_x[s] is the x-values (r-values)
+    birth_y = birthY; // birth_y[s] is the y-values for that kernel
 
-    // 3) Copy death kernel
+    // 4) Store death kernel lookups for (s1, s2)
     death_x.resize(M);
     death_y.resize(M);
     for (int s1=0; s1<M; s1++) {
@@ -66,7 +174,7 @@ Grid<DIM>::Grid(int M_,
         }
     }
 
-    // 4) cutoff & cull
+    // 5) cutoff[s1][s2]
     cutoff.resize(M);
     for (int s1=0; s1<M; s1++) {
         cutoff[s1].resize(M);
@@ -82,14 +190,13 @@ Grid<DIM>::Grid(int M_,
             for (int dim=0; dim<DIM; dim++) {
                 double cellSize = area_length[dim]/cell_count[dim];
                 int needed = (int)std::ceil(cutoff[s1][s2]/cellSize);
-                // To ensure we visit at least the cell itself,
-                // we can set a floor of 1:
+                // at least 1 cell
                 cull[s1][s2][dim] = std::max(needed, 1);
             }
         }
     }
 
-    // 5) total_num_cells
+    // 6) total_num_cells
     {
         int prod = 1;
         for (int dim=0; dim<DIM; dim++) {
@@ -98,7 +205,7 @@ Grid<DIM>::Grid(int M_,
         total_num_cells = prod;
     }
 
-    // 6) Allocate cells
+    // 7) Allocate cells
     cells.resize(total_num_cells);
     for (auto &c : cells) {
         c.initSpecies(M);
@@ -117,14 +224,25 @@ int Grid<DIM>::flattenIdx(const std::array<int,DIM> &idx) const {
 }
 
 template<int DIM>
+std::array<int,DIM> Grid<DIM>::unflattenIdx(int cellIndex) const
+{
+    std::array<int,DIM> cIdx;
+    for (int dim = 0; dim < DIM; dim++) {
+        cIdx[dim] = cellIndex % cell_count[dim];
+        cellIndex /= cell_count[dim];
+    }
+    return cIdx;
+}
+
+template<int DIM>
 int Grid<DIM>::wrapIndex(int i, int dim) const {
     if (!periodic) {
-        // If not periodic, we simply do not wrap;
-        // the caller is presumably controlling the range
+        // clamp to [0, cell_count[dim]-1] if nonperiodic
+        // or let caller handle out-of-bounds
         return i;
     }
     int n = cell_count[dim];
-    if (i < 0)  i += n;
+    if (i < 0)  i += n;  // simple wrap
     if (i >= n) i -= n;
     return i;
 }
@@ -143,6 +261,7 @@ bool Grid<DIM>::inDomain(const std::array<int,DIM>& idx) const
 template<int DIM>
 Cell<DIM>& Grid<DIM>::cellAt(const std::array<int,DIM> &raw)
 {
+    // wrap or clamp
     std::array<int,DIM> w;
     for (int dim=0; dim<DIM; dim++) {
         w[dim] = wrapIndex(raw[dim], dim);
@@ -157,122 +276,13 @@ double Grid<DIM>::evalBirthKernel(int s, double x) const {
 
 template<int DIM>
 double Grid<DIM>::evalDeathKernel(int s1, int s2, double dist) const {
+    // directed: only uses dd[s1][s2], plus kernel in death_x[s1][s2], death_y[s1][s2]
     return linearInterpolate(death_x[s1][s2], death_y[s1][s2], dist);
 }
 
-template<int DIM>
-void Grid<DIM>::placeInitialPopulations(
-    const std::vector< std::vector< std::array<double,DIM> > > &initialCoords
-)
-{
-    for (int s = 0; s < M; s++) {
-        for (auto &pos : initialCoords[s]) {
-            // compute cell index
-            std::array<int,DIM> cIdx;
-            for (int dim=0; dim<DIM; dim++) {
-                double coord = pos[dim];
-                if (coord < 0) coord = 0;
-                if (coord > area_length[dim]) coord = area_length[dim];
-                int ic = (int)std::floor(coord * cell_count[dim] / area_length[dim]);
-                if (ic == cell_count[dim]) ic--;
-                cIdx[dim] = ic;
-            }
-            auto &cell = cellAt(cIdx);
-            cell.coords[s].push_back(pos);
-
-            // baseline death rate
-            cell.deathRates[s].push_back(d[s]);
-            cell.population[s] += 1;
-
-            total_population++;
-
-            // Update the cell's cached rates
-            cell.cellDeathRateBySpecies[s] += d[s];
-            cell.cellDeathRate += d[s];
-            total_death_rate += d[s];
-
-            cell.cellBirthRateBySpecies[s] += b[s];
-            cell.cellBirthRate += b[s];
-            total_birth_rate += b[s];
-        }
-    }
-}
-
-template<int DIM>
-void Grid<DIM>::computeInitialDeathRates()
-{
-    // We already have baseline in each cell's deathRates[s][i],
-    // and partial sums in cellDeathRateBySpecies[s].
-    // Now we add pairwise interactions.
-
-    for (int cellIndex = 0; cellIndex < total_num_cells; cellIndex++) {
-        // unflatten
-        std::array<int,DIM> cIdx;
-        {
-            int temp = cellIndex;
-            for (int dim=0; dim<DIM; dim++) {
-                cIdx[dim] = temp % cell_count[dim];
-                temp /= cell_count[dim];
-            }
-        }
-        Cell<DIM> &thisCell = cells[cellIndex];
-
-        // For each species s1
-        for (int s1 = 0; s1 < M; s1++)
-        {
-            for (int i = 0; i < (int)thisCell.coords[s1].size(); i++)
-            {
-                auto &pos1 = thisCell.coords[s1][i];
-                double &dr1 = thisCell.deathRates[s1][i];
-
-                // For each species s2
-                for (int s2 = 0; s2 < M; s2++)
-                {
-                    auto cullRange = cull[s1][s2];
-
-                    // Visit neighbors (including the same cell)
-                    forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
-                    {
-                        // skip out-of-bounds if nonperiodic
-                        if (!periodic && !inDomain(nIdx)) return;
-
-                        Cell<DIM> & neighCell = cellAt(nIdx);
-
-                        for (int j = 0; j < (int)neighCell.coords[s2].size(); j++)
-                        {
-                            // skip self if (same cell, same species, same index)
-                            if (&thisCell == &neighCell && s1 == s2 && i == j)
-                                continue;
-
-                            auto &pos2 = neighCell.coords[s2][j];
-                            double dist = distancePeriodic<DIM>(pos1, pos2, area_length, periodic);
-
-                            if (dist <= cutoff[s1][s2])
-                            {
-                                // (1) Add to particle i's death rate
-                                double interaction = dd[s1][s2] * evalDeathKernel(s1, s2, dist);
-                                dr1 += interaction;
-                                thisCell.cellDeathRateBySpecies[s1] += interaction;
-                                thisCell.cellDeathRate += interaction;
-                                total_death_rate += interaction;
-
-                                // (2) Symmetrical effect: also add to particle j’s rate
-                                //     *if* your model requires both i->j and j->i “killing”.
-                                //     Typically you do want that if dd is symmetrical:
-                                double interaction2 = dd[s2][s1] * evalDeathKernel(s2, s1, dist);
-                                neighCell.deathRates[s2][j] += interaction2;
-                                neighCell.cellDeathRateBySpecies[s2] += interaction2;
-                                neighCell.cellDeathRate += interaction2;
-                                total_death_rate += interaction2;
-                            }
-                        }
-                    });
-                }
-            }
-        }
-    }
-}
-
+/**
+ * Helper: returns a random unit vector in DIM dimensions.
+ */
 template<int DIM>
 std::array<double, DIM> Grid<DIM>::randomUnitVector(std::mt19937 & rng)
 {
@@ -299,243 +309,326 @@ std::array<double, DIM> Grid<DIM>::randomUnitVector(std::mt19937 & rng)
     return dir;
 }
 
+//---------------------------------------------------------
+//     spawn_at
+//---------------------------------------------------------
+/**
+ * Places a new particle of species s at position pos,
+ * respecting boundary conditions, then updates cell rates and pairwise interactions.
+ * If non-periodic and pos is out of range, we do nothing (discard).
+ */
+template<int DIM>
+void Grid<DIM>::spawn_at(int s, const std::array<double, DIM> &inPos)
+{
+    // 1) Possibly handle boundary or discard if non-periodic out-of-bounds
+    std::array<double,DIM> pos = inPos;
+    for (int d=0; d<DIM; d++) {
+        if (pos[d] < 0.0 || pos[d] > area_length[d]) {
+            if (!periodic) {
+                // out of domain => do nothing
+                return;
+            } else {
+                // wrap around
+                double L = area_length[d];
+                while (pos[d] < 0.0)   pos[d] += L;
+                while (pos[d] >= L)    pos[d] -= L;
+            }
+        }
+    }
+
+    // 2) Determine which cell
+    std::array<int,DIM> cIdx;
+    for (int d=0; d<DIM; d++) {
+        int c = (int)std::floor(pos[d] * cell_count[d] / area_length[d]);
+        if (c == cell_count[d]) c--;
+        cIdx[d] = c;
+    }
+    Cell<DIM> & cell = cellAt(cIdx);
+
+    // 3) Insert occupant
+    cell.coords[s].push_back(pos);
+    cell.deathRates[s].push_back(d[s]); // baseline rate for the new occupant
+    cell.population[s]++;
+    total_population++;
+
+    // 4) Update cell & total birth/death caches by baseline
+    cell.cellBirthRateBySpecies[s] += b[s];
+    cell.cellBirthRate            += b[s];
+    total_birth_rate              += b[s];
+
+    cell.cellDeathRateBySpecies[s] += d[s];
+    cell.cellDeathRate            += d[s];
+    total_death_rate              += d[s];
+
+    // 5) Add pairwise interactions from this new occupant to others
+    //    and from others to this occupant.
+    //    "Directed" means we do i->j if dd[sNew][s2],
+    //    and j->i if dd[s2][sNew], each with separate kernel.
+    auto & posNew = cell.coords[s].back();  // the newly added occupant
+    int newIdx = (int)cell.coords[s].size() - 1;
+
+    // For each other species s2
+    for (int s2 = 0; s2 < M; s2++) {
+        auto cullRange = cull[s][s2];
+        // neighbor cells
+        forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
+        {
+            if (!periodic && !inDomain(nIdx)) {
+                return; // skip out-of-bounds neighbor
+            }
+            Cell<DIM> & neighCell = cellAt(nIdx);
+            // loop occupant j in s2
+            for (int j=0; j<(int)neighCell.coords[s2].size(); j++) {
+                // skip if it is the same occupant
+                if (&neighCell == &cell && s2 == s && j == newIdx) {
+                    continue;
+                }
+                auto & pos2 = neighCell.coords[s2][j];
+                double dist = distancePeriodic<DIM>(posNew, pos2, area_length, periodic);
+                if (dist <= cutoff[s][s2]) {
+                    // i->j
+                    double inter_ij = dd[s][s2] * evalDeathKernel(s, s2, dist);
+                    // occupant i is the new one
+                    // occupant j is in neighCell
+                    // occupant j's death rate is increased if s->s2 interaction is non-zero
+                    neighCell.deathRates[s2][j]          += inter_ij;
+                    neighCell.cellDeathRateBySpecies[s2] += inter_ij;
+                    neighCell.cellDeathRate              += inter_ij;
+                    total_death_rate                     += inter_ij;
+                }
+                if (dist <= cutoff[s2][s]) {
+                    // j->i
+                    double inter_ji = dd[s2][s] * evalDeathKernel(s2, s, dist);
+                    // occupant i's death rate is increased if s2->s interaction is non-zero
+                    cell.deathRates[s][newIdx]           += inter_ji;
+                    cell.cellDeathRateBySpecies[s]       += inter_ji;
+                    cell.cellDeathRate                   += inter_ji;
+                    total_death_rate                     += inter_ji;
+                }
+            }
+        });
+    }
+}
+
+//---------------------------------------------------------
+//     kill_at
+//---------------------------------------------------------
+/**
+ * Removes exactly one particle of species s in the cell cIdx that matches 'posKill'
+ * (within a small epsilon, or exactly if your coords are integral).
+ * Updates pairwise interactions accordingly.
+ */
+template<int DIM>
+void Grid<DIM>::kill_at(int s, const std::array<int,DIM> &cIdx, int victimIdx)
+{
+    Cell<DIM> & cell = cellAt(cIdx);
+
+    // 1) The occupant's baseline death rate is cell.deathRates[s][victimIdx]
+    double victimRate = cell.deathRates[s][victimIdx];
+
+    // 2) Subtract baseline from cell & total
+    cell.population[s]--;
+    total_population--;
+
+    cell.cellDeathRateBySpecies[s] -= victimRate;
+    cell.cellDeathRate             -= victimRate;
+    total_death_rate               -= victimRate;
+
+    // 3) Subtract baseline birth from cell & total
+    cell.cellBirthRateBySpecies[s] -= b[s];
+    cell.cellBirthRate            -= b[s];
+    total_birth_rate              -= b[s];
+
+    // 4) Remove pairwise interactions contributed by that occupant
+    removeInteractionsOfParticle(cIdx, s, victimIdx);
+
+    // 5) Swap-and-pop from coords[s], deathRates[s]
+    int lastIdx = (int)cell.coords[s].size() - 1;
+    if (victimIdx != lastIdx) {
+        cell.coords[s][victimIdx]     = cell.coords[s][lastIdx];
+        cell.deathRates[s][victimIdx] = cell.deathRates[s][lastIdx];
+    }
+    cell.coords[s].pop_back();
+    cell.deathRates[s].pop_back();
+}
+
+/**
+ * Remove all pairwise interactions contributed by occupant (sVictim, victimIdx) in cell cIdx,
+ * including i->j (for occupant's effect on neighbors) and j->i (neighbors' effect on occupant).
+ */
+template<int DIM>
+void Grid<DIM>::removeInteractionsOfParticle(const std::array<int,DIM> &cIdx,
+                                             int sVictim, int victimIdx)
+{
+    Cell<DIM> &victimCell = cellAt(cIdx);
+    auto & posVictim = victimCell.coords[sVictim][victimIdx];
+
+    // For each species s2, remove i->j and j->i if within cutoff
+    for (int s2 = 0; s2 < M; s2++) {
+        // cull range for sVictim->s2
+        auto range = cull[sVictim][s2];
+        forNeighbors<DIM>(cIdx, range, [&](const std::array<int,DIM> &nIdx)
+        {
+            if (!periodic && !inDomain(nIdx)) {
+                return;
+            }
+            Cell<DIM> & neighCell = cellAt(nIdx);
+            // occupant j in species s2
+            for (int j = 0; j < (int)neighCell.coords[s2].size(); j++) {
+                // skip the victim itself
+                if (&neighCell == &victimCell && s2 == sVictim && j == victimIdx) {
+                    continue;
+                }
+                auto & pos2 = neighCell.coords[s2][j];
+                double dist = distancePeriodic<DIM>(posVictim, pos2, area_length, periodic);
+
+                // i->j means occupant i (victim) kills occupant j if dd[sVictim][s2]
+                if (dist <= cutoff[sVictim][s2]) {
+                    double inter_ij = dd[sVictim][s2] * evalDeathKernel(sVictim, s2, dist);
+                    neighCell.deathRates[s2][j]         -= inter_ij;
+                    neighCell.cellDeathRateBySpecies[s2] -= inter_ij;
+                    neighCell.cellDeathRate             -= inter_ij;
+                    total_death_rate                    -= inter_ij;
+                }
+
+            }
+        });
+    }
+}
+
+//---------------------------------------------------------
+//   placePopulation
+//---------------------------------------------------------
+/**
+ * Convenience function that loops over a given set of coordinates for each species
+ * and calls spawn_at(s, pos).  Replaces old placeInitialPopulations().
+ */
+template<int DIM>
+void Grid<DIM>::placePopulation(const std::vector< std::vector< std::array<double,DIM> > > &initCoords)
+{
+    // initCoords[s] is a list of positions for species s
+    for (int s = 0; s < M; s++) {
+        for (auto & pos : initCoords[s]) {
+            spawn_at(s, pos);
+        }
+    }
+}
+
+//---------------------------------------------------------
+//   spawn_random
+//---------------------------------------------------------
+/**
+ * Picks a random cell (weighted by cellBirthRate) and species (weighted by cellBirthRateBySpecies),
+ * then picks a random occupant in that cell as the "parent."
+ * A radius is drawn from the birth kernel for that species, plus a random direction => childPos.
+ * Calls spawn_at(...) with that position.
+ */
 template<int DIM>
 void Grid<DIM>::spawn_random()
 {
-    // 1) pick cell by discrete distribution of cellBirthRate
+    if (total_birth_rate < 1e-12) {
+        // no births possible
+        return;
+    }
+    // 1) pick cell
     std::vector<double> cellRateVec(total_num_cells);
-    for (int i=0; i<total_num_cells; i++) {
+    for (int i = 0; i < total_num_cells; i++) {
         cellRateVec[i] = cells[i].cellBirthRate;
     }
     std::discrete_distribution<int> cellDist(cellRateVec.begin(), cellRateVec.end());
-    int cellIndex = cellDist(rng);
-    Cell<DIM> & parentCell = cells[cellIndex];
+    int parentCellIndex = cellDist(rng);
+    Cell<DIM> & parentCell = cells[parentCellIndex];
 
-    // 2) pick species by cellBirthRateBySpecies
+    // 2) pick species
     std::discrete_distribution<int> spDist(
         parentCell.cellBirthRateBySpecies.begin(),
         parentCell.cellBirthRateBySpecies.end()
     );
     int s = spDist(rng);
 
-    // 3) pick a random parent index
-    int popS = parentCell.population[s];
-    if (popS == 0) {
-        // no parent -> cannot spawn
+    // if no occupant of that species, do nothing
+    if (parentCell.population[s] == 0) {
         return;
     }
-    int parentIdx = std::uniform_int_distribution<int>(0, popS-1)(rng);
+
+    // 3) pick parent occupant index
+    int parentIdx = std::uniform_int_distribution<int>(0, parentCell.population[s]-1)(rng);
     auto & parentPos = parentCell.coords[s][parentIdx];
 
-    // 4) sample birth radius (ICDF from birth kernel)
+    // 4) sample radius from the birth kernel
     double u = std::uniform_real_distribution<double>(0.0, 1.0)(rng);
-    double radius = linearInterpolate(birth_x[s], birth_y[s], u);
+    double radius = evalBirthKernel(s, u);
+    // or if your birth kernel x-values are [0..max], and y-values are the inverse CDF,
+    // you might do linearInterpolate(birth_x[s], birth_y[s], u), etc.
 
-    // 5) pick random direction, multiply by radius
+    // 5) random direction
     auto dir = randomUnitVector(rng);
     for (int d=0; d<DIM; d++) {
         dir[d] *= radius;
     }
 
-    // new position = parent position + dir
-    std::array<double, DIM> childPos;
+    // 6) childPos
+    std::array<double,DIM> childPos;
     for (int d=0; d<DIM; d++) {
         childPos[d] = parentPos[d] + dir[d];
-        // boundary check
-        if (childPos[d] < 0.0 || childPos[d] > area_length[d]) {
-            if (!periodic) {
-                // discard
-                return;
-            } else {
-                double L = area_length[d];
-                while (childPos[d] < 0.0)  childPos[d] += L;
-                while (childPos[d] >= L)   childPos[d] -= L;
-            }
-        }
     }
 
-    // 6) figure out child's cell
-    std::array<int, DIM> childCellIdx;
-    for (int d=0; d<DIM; d++) {
-        int c = (int)std::floor(childPos[d] * cell_count[d] / area_length[d]);
-        if (c == cell_count[d]) c--;
-        childCellIdx[d] = c;
-    }
-    Cell<DIM> & childCell = cellAt(childCellIdx);
-
-    // 7) Insert new individual
-    childCell.coords[s].push_back(childPos);
-    childCell.deathRates[s].push_back(d[s]);
-    childCell.population[s]++;
-    total_population++;
-
-    // update local caches
-    childCell.cellBirthRateBySpecies[s] += b[s];
-    childCell.cellBirthRate += b[s];
-    total_birth_rate += b[s];
-
-    childCell.cellDeathRateBySpecies[s] += d[s];
-    childCell.cellDeathRate += d[s];
-    total_death_rate += d[s];
-
-    // 8) Add pairwise interactions
-    updateInteractionsForNewParticle(childCellIdx, s,
-                                     (int)childCell.coords[s].size() - 1);
+    // 7) call spawn_at
+    spawn_at(s, childPos);
 }
 
-template<int DIM>
-void Grid<DIM>::updateInteractionsForNewParticle(
-    const std::array<int,DIM> & cIdx,
-    int sNew,
-    int newIdx
-)
-{
-    Cell<DIM> & cell = cellAt(cIdx);
-    auto & posNew = cell.coords[sNew][newIdx];
-
-    // For each other species s2
-    for (int s2 = 0; s2 < M; s2++) {
-        auto cullRange = cull[sNew][s2];
-        forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
-        {
-            if (!periodic && !inDomain(nIdx)) {
-                return; // skip out-of-bounds neighbor
-            }
-            Cell<DIM> & neighCell = cellAt(nIdx);
-
-            for (int j=0; j<(int)neighCell.coords[s2].size(); j++) {
-                // skip self
-                if (&neighCell == &cell && s2 == sNew && j == newIdx) {
-                    continue;
-                }
-                auto & pos2 = neighCell.coords[s2][j];
-                double dist = distancePeriodic<DIM>(posNew, pos2, area_length, periodic);
-                if (dist <= cutoff[sNew][s2]) {
-                    double interaction = dd[sNew][s2] * evalDeathKernel(sNew, s2, dist);
-                    cell.deathRates[sNew][newIdx] += interaction;
-                    cell.cellDeathRateBySpecies[sNew] += interaction;
-                    cell.cellDeathRate += interaction;
-                    total_death_rate += interaction;
-
-                    // symmetrical effect
-                    double interaction2 = dd[s2][sNew] * evalDeathKernel(s2, sNew, dist);
-                    neighCell.deathRates[s2][j] += interaction2;
-                    neighCell.cellDeathRateBySpecies[s2] += interaction2;
-                    neighCell.cellDeathRate += interaction2;
-                    total_death_rate += interaction2;
-                }
-            }
-        });
-    }
-}
-
+//---------------------------------------------------------
+//    kill_random
+//---------------------------------------------------------
+/**
+ * Picks a random cell (weighted by cellDeathRate), random species within that cell,
+ * then a random occupant within that species (weighted by per-particle deathRates[s][i]).
+ * Calls kill_at(...) to remove that occupant.
+ */
 template<int DIM>
 void Grid<DIM>::kill_random()
 {
+    if (total_death_rate < 1e-12) {
+        // no deaths possible
+        return;
+    }
     // 1) pick cell
     std::vector<double> cellRateVec(total_num_cells);
-    for (int i=0; i<total_num_cells; i++) {
+    for (int i = 0; i < total_num_cells; i++) {
         cellRateVec[i] = cells[i].cellDeathRate;
     }
     std::discrete_distribution<int> cellDist(cellRateVec.begin(), cellRateVec.end());
     int cellIndex = cellDist(rng);
-    Cell<DIM> & cell = cells[cellIndex];
+    Cell<DIM> &cell = cells[cellIndex];
 
     // 2) pick species
     std::discrete_distribution<int> spDist(
         cell.cellDeathRateBySpecies.begin(),
-        cell.cellDeathRateBySpecies.end()
-    );
+        cell.cellDeathRateBySpecies.end());
     int s = spDist(rng);
 
     if (cell.population[s] == 0) {
-        // no one to kill
-        return;
+        return; // no occupant
     }
 
-    // 3) pick victim
+    // 3) pick occupant
     std::discrete_distribution<int> victimDist(
         cell.deathRates[s].begin(),
         cell.deathRates[s].end()
     );
     int victimIdx = victimDist(rng);
-    double victimRate = cell.deathRates[s][victimIdx];
 
-    // 4) remove from cell
-    cell.population[s]--;
-    total_population--;
+    // 4) build cIdx from cellIndex
+    std::array<int,DIM> cIdx = unflattenIdx(cellIndex);
+    auto posVictim = cell.coords[s][victimIdx];
 
-    cell.cellDeathRateBySpecies[s] -= victimRate;
-    cell.cellDeathRate -= victimRate;
-    total_death_rate -= victimRate;
-
-    cell.cellBirthRateBySpecies[s] -= b[s];
-    cell.cellBirthRate -= b[s];
-    total_birth_rate -= b[s];
-
-    // remove pairwise interactions
-    removeInteractionsOfParticle(cellIndex, s, victimIdx);
-
-    // swap-and-pop
-    int lastIdx = (int)cell.coords[s].size() - 1;
-    cell.coords[s][victimIdx] = cell.coords[s][lastIdx];
-    cell.deathRates[s][victimIdx] = cell.deathRates[s][lastIdx];
-    cell.coords[s].pop_back();
-    cell.deathRates[s].pop_back();
+    // 5) kill_at(s, cIdx, victimIdx)
+    kill_at(s, cIdx, victimIdx);
 }
 
-template<int DIM>
-void Grid<DIM>::removeInteractionsOfParticle(
-    int cellIndex,
-    int sVictim,
-    int victimIdx
-)
-{
-    // unflatten
-    std::array<int,DIM> cIdx;
-    {
-        int tmp = cellIndex;
-        for (int dim=0; dim<DIM; dim++) {
-            cIdx[dim] = tmp % cell_count[dim];
-            tmp /= cell_count[dim];
-        }
-    }
-    Cell<DIM> & cell = cells[cellIndex];
-    auto & posVictim = cell.coords[sVictim][victimIdx];
-
-    // We'll remove the interactions contributed by victim
-    for (int s2=0; s2<M; s2++) {
-        auto cullRange = cull[sVictim][s2];
-        forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
-        {
-            if (!periodic && !inDomain(nIdx)) {
-                return; // skip out-of-bounds neighbor
-            }
-            Cell<DIM> & neighCell = cellAt(nIdx);
-
-            for (int j=0; j<(int)neighCell.coords[s2].size(); j++) {
-                // skip the victim itself
-                if (&neighCell == &cell && s2 == sVictim && j == victimIdx) {
-                    continue;
-                }
-                auto & pos2 = neighCell.coords[s2][j];
-                double dist = distancePeriodic<DIM>(posVictim, pos2, area_length, periodic);
-                if (dist <= cutoff[sVictim][s2]) {
-                    double interaction = dd[sVictim][s2] * evalDeathKernel(sVictim, s2, dist);
-                    neighCell.deathRates[s2][j] -= interaction;
-                    neighCell.cellDeathRateBySpecies[s2] -= interaction;
-                    neighCell.cellDeathRate -= interaction;
-                    total_death_rate -= interaction;
-
-                    double interaction2 = dd[s2][sVictim] * evalDeathKernel(s2, sVictim, dist);
-                    cell.cellDeathRateBySpecies[sVictim] -= interaction2;
-                    cell.cellDeathRate -= interaction2;
-                    total_death_rate -= interaction2;
-                }
-            }
-        });
-    }
-}
+//---------------------------------------------------------
+//   make_event, run_events, run_for
+//---------------------------------------------------------
 
 template<int DIM>
 void Grid<DIM>::make_event()
@@ -547,11 +640,12 @@ void Grid<DIM>::make_event()
     }
     event_count++;
 
-    // 1) Advance time
+    // 1) Advance time by Exp(sumRate)
     std::exponential_distribution<double> expDist(sumRate);
-    time += expDist(rng);
+    double dt = expDist(rng);
+    time += dt;
 
-    // 2) Decide birth or death
+    // 2) Decide birth vs death
     double r = std::uniform_real_distribution<double>(0.0, sumRate)(rng);
     bool isBirth = (r < total_birth_rate);
 
@@ -565,28 +659,34 @@ void Grid<DIM>::make_event()
 template<int DIM>
 void Grid<DIM>::run_events(int events)
 {
-    if (events > 0){
-        for (int i = 0; i < events; i++){
-            if (std::chrono::system_clock::now() > init_time + std::chrono::duration<double>(realtime_limit)){
-                realtime_limit_reached = true;
-                return;
-            }
-            make_event();
+    for (int i = 0; i < events; i++){
+        // optionally check real time limit
+        if (std::chrono::system_clock::now() > init_time +
+            std::chrono::duration<double>(realtime_limit))
+        {
+            realtime_limit_reached = true;
+            return;
         }
+        make_event();
     }
 }
 
 template<int DIM>
-void Grid<DIM>::run_for(double time)
+void Grid<DIM>::run_for(double duration)
 {
-    if (time > 0.0){
-        double time0 = this->time;
-        while (this->time < time0 + time){
-            if (std::chrono::system_clock::now() > init_time + std::chrono::duration<double>(realtime_limit)){
-                realtime_limit_reached = true;
-                return;
-            }
-            make_event();
+    double endTime = time + duration;
+    while (time < endTime){
+        // real-time limit?
+        if (std::chrono::system_clock::now() > init_time +
+            std::chrono::duration<double>(realtime_limit))
+        {
+            realtime_limit_reached = true;
+            return;
+        }
+        make_event();
+        if (total_birth_rate + total_death_rate < 1e-12) {
+            // no more events possible
+            return;
         }
     }
 }

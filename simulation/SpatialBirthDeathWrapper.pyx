@@ -4,11 +4,9 @@
 from libcpp.vector cimport vector
 from libcpp cimport bool
 from libc.stdlib cimport malloc, free
-# If you need memory views, you can also: from cython cimport view
 
 #######################################################
-# 1) Declare std::array<T,N> manually for each needed
-#    combination: T in {double,int}, N in {1,2,3}.
+# 1) Declare std::array<T,N> for needed combos
 #######################################################
 cdef extern from "<array>" namespace "std" nogil:
 
@@ -42,33 +40,22 @@ cdef extern from "<array>" namespace "std" nogil:
         arrayInt3() except +
         int& operator[](size_t) except +
 
-
 #######################################################
-# 2) Provide helper functions to convert from Python
-#    to these std::array types.  No cdef in loops!
+# 2) Provide helper functions to convert Python -> std::array
 #######################################################
 
 cdef arrayDouble1 pyToStdArrayDouble1(list arr) except *:
-    """
-    Convert a Python list [x] to std::array<double,1>.
-    """
     cdef arrayDouble1 result = arrayDouble1()
     result[0] = <double>arr[0]
     return result
 
 cdef arrayDouble2 pyToStdArrayDouble2(list arr) except *:
-    """
-    Convert [x,y] to std::array<double,2>.
-    """
     cdef arrayDouble2 result = arrayDouble2()
     result[0] = <double>arr[0]
     result[1] = <double>arr[1]
     return result
 
 cdef arrayDouble3 pyToStdArrayDouble3(list arr) except *:
-    """
-    Convert [x,y,z] to std::array<double,3>.
-    """
     cdef arrayDouble3 result = arrayDouble3()
     result[0] = <double>arr[0]
     result[1] = <double>arr[1]
@@ -76,26 +63,17 @@ cdef arrayDouble3 pyToStdArrayDouble3(list arr) except *:
     return result
 
 cdef arrayInt1 pyToStdArrayInt1(list arr) except *:
-    """
-    Convert [i] to std::array<int,1>.
-    """
     cdef arrayInt1 result = arrayInt1()
     result[0] = <int>arr[0]
     return result
 
 cdef arrayInt2 pyToStdArrayInt2(list arr) except *:
-    """
-    Convert [i,j] to std::array<int,2>.
-    """
     cdef arrayInt2 result = arrayInt2()
     result[0] = <int>arr[0]
     result[1] = <int>arr[1]
     return result
 
 cdef arrayInt3 pyToStdArrayInt3(list arr) except *:
-    """
-    Convert [i,j,k] to std::array<int,3>.
-    """
     cdef arrayInt3 result = arrayInt3()
     result[0] = <int>arr[0]
     result[1] = <int>arr[1]
@@ -107,10 +85,6 @@ cdef arrayInt3 pyToStdArrayInt3(list arr) except *:
 #######################################################
 
 cdef vector[double] pyListToVectorDouble(object pyList) except *:
-    """
-    Convert a Python iterable of floats into a std::vector<double>.
-    Ensures no cdef declarations happen inside the loop.
-    """
     cdef int n = len(pyList)
     cdef vector[double] vec
     vec.resize(n)
@@ -122,9 +96,6 @@ cdef vector[double] pyListToVectorDouble(object pyList) except *:
     return vec
 
 cdef vector[ vector[double] ] pyListOfListToVectorVectorDouble(object pyList) except *:
-    """
-    Convert a list of lists of floats -> vector<vector<double>>.
-    """
     cdef int outer_size = len(pyList)
     cdef vector[ vector[double] ] result
     result.resize(outer_size)
@@ -143,36 +114,31 @@ cdef vector[ vector[double] ] pyListOfListToVectorVectorDouble(object pyList) ex
     return result
 
 cdef vector[ vector[ vector[double] ] ] pyListOfListOfListToVector3Double(object pyList) except *:
-    """
-    For e.g. death_x[s1][s2], stored as vector<vector<vector<double>>> in C++.
-    """
     cdef int s1_count = len(pyList)
     cdef vector[ vector[ vector[double] ] ] out3
     out3.resize(s1_count)
 
-    cdef object third_level
-    cdef vector[double] tempVec
-
-    cdef int s1, s2_count, s2, iSize
     cdef object second_level
+    cdef object third_level
+    cdef int s1, s2_count, s2
     for s1 in range(s1_count):
         second_level = pyList[s1]
         s2_count = len(second_level)
         out3[s1].resize(s2_count)
         for s2 in range(s2_count):
             third_level = second_level[s2]
-            tempVec = pyListToVectorDouble(third_level)
-            out3[s1][s2] = tempVec
+            out3[s1][s2] = pyListToVectorDouble(third_level)
     return out3
 
 #######################################################
-# 4) Convert Python -> initialCoords for placeInitialPopulations
+# 4) Convert Python -> data for placePopulation(...)
 #    dimension-specific
 #######################################################
+# We'll keep these for convenience if the user wants to place multiple coords.
 
-cdef vector[ vector[ arrayDouble1 ] ] pyToInitialCoordsD1(object pyCoords) except *:
+cdef vector[ vector[ arrayDouble1 ] ] pyToCoordsD1(object pyCoords) except *:
     """
-    pyCoords[s] is a list of positions in 1D: [[x1], [x2], ...].
+    pyCoords[s] = list of positions in 1D, e.g. [[x1], [x2], ...].
     We'll build vector[ vector[arrayDouble1] ].
     """
     cdef int nSpecies = len(pyCoords)
@@ -182,18 +148,16 @@ cdef vector[ vector[ arrayDouble1 ] ] pyToInitialCoordsD1(object pyCoords) excep
     cdef int s, nPos, i
     cdef object posList
     cdef list singlePos
-    cdef arrayDouble1 arr1
     for s in range(nSpecies):
         posList = pyCoords[s]
         nPos = len(posList)
         result[s].resize(nPos)
         for i in range(nPos):
             singlePos = posList[i]
-            arr1 = pyToStdArrayDouble1(singlePos)
-            result[s][i] = arr1
+            result[s][i] = pyToStdArrayDouble1(singlePos)
     return result
 
-cdef vector[ vector[ arrayDouble2 ] ] pyToInitialCoordsD2(object pyCoords) except *:
+cdef vector[ vector[ arrayDouble2 ] ] pyToCoordsD2(object pyCoords) except *:
     """
     pyCoords[s] = list of [ [x,y], [x2,y2], ... ] for species s.
     """
@@ -204,20 +168,18 @@ cdef vector[ vector[ arrayDouble2 ] ] pyToInitialCoordsD2(object pyCoords) excep
     cdef int s, nPos, i
     cdef object posList
     cdef list xy
-    cdef arrayDouble2 arr2
     for s in range(nSpecies):
         posList = pyCoords[s]
         nPos = len(posList)
         result[s].resize(nPos)
         for i in range(nPos):
             xy = posList[i]
-            arr2 = pyToStdArrayDouble2(xy)
-            result[s][i] = arr2
+            result[s][i] = pyToStdArrayDouble2(xy)
     return result
 
-cdef vector[ vector[ arrayDouble3 ] ] pyToInitialCoordsD3(object pyCoords) except *:
+cdef vector[ vector[ arrayDouble3 ] ] pyToCoordsD3(object pyCoords) except *:
     """
-    pyCoords[s] = list of [ [x,y,z], [x2,y2,z2], ... ] for species s.
+    pyCoords[s] = list of [ [x,y,z], [..], ... ] for species s.
     """
     cdef int nSpecies = len(pyCoords)
     cdef vector[ vector[ arrayDouble3 ] ] result
@@ -226,23 +188,20 @@ cdef vector[ vector[ arrayDouble3 ] ] pyToInitialCoordsD3(object pyCoords) excep
     cdef int s, nPos, i
     cdef object posList
     cdef list xyz
-    cdef arrayDouble3 arr3
     for s in range(nSpecies):
         posList = pyCoords[s]
         nPos = len(posList)
         result[s].resize(nPos)
         for i in range(nPos):
             xyz = posList[i]
-            arr3 = pyToStdArrayDouble3(xyz)
-            result[s][i] = arr3
+            result[s][i] = pyToStdArrayDouble3(xyz)
     return result
+
 #######################################################
-#  Declare the extern C++ classes: Cell<1>, Cell<2>, Cell<3>
+# 5) Expose Cell<DIM> (for reading only)
 #######################################################
 cdef extern from "SpatialBirthDeath.h":
     cdef cppclass Cell1 "Cell<1>":
-        # Expose the fields we want to read.
-        # The type must match exactly how it is declared in the template Cell<DIM>.
         vector[ vector[arrayDouble1] ] coords
         vector[ vector[double] ]       deathRates
         vector[int]                    population
@@ -250,10 +209,9 @@ cdef extern from "SpatialBirthDeath.h":
         vector[double]                cellDeathRateBySpecies
         double                        cellBirthRate
         double                        cellDeathRate
+
 cdef extern from "SpatialBirthDeath.h":
     cdef cppclass Cell2 "Cell<2>":
-        # Expose the fields we want to read.
-        # The type must match exactly how it is declared in the template Cell<DIM>.
         vector[ vector[arrayDouble2] ] coords
         vector[ vector[double] ]       deathRates
         vector[int]                    population
@@ -264,8 +222,6 @@ cdef extern from "SpatialBirthDeath.h":
 
 cdef extern from "SpatialBirthDeath.h":
     cdef cppclass Cell3 "Cell<3>":
-        # Expose the fields we want to read.
-        # The type must match exactly how it is declared in the template Cell<DIM>.
         vector[ vector[arrayDouble3] ] coords
         vector[ vector[double] ]       deathRates
         vector[int]                    population
@@ -273,10 +229,10 @@ cdef extern from "SpatialBirthDeath.h":
         vector[double]                cellDeathRateBySpecies
         double                        cellBirthRate
         double                        cellDeathRate
-#######################################################
-# 5) Declare the extern C++ classes: Grid<1>, Grid<2>, Grid<3>
-#######################################################
 
+#######################################################
+# 6) Expose Grid<DIM> classes with new methods
+#######################################################
 cdef extern from "SpatialBirthDeath.h":
 
     cdef cppclass Grid1 "Grid<1>":
@@ -284,29 +240,31 @@ cdef extern from "SpatialBirthDeath.h":
               arrayDouble1 areaLen,
               arrayInt1 cellCount_,
               bool isPeriodic,
-              vector[double]  &birthRates,
-              vector[double]  &deathRates,
-              vector[double]  &ddMatrix,
-              vector[ vector[double] ]  &birthX,
-              vector[ vector[double] ]  &birthY,
-              vector[ vector[ vector[double] ] ]  &deathX_,
-              vector[ vector[ vector[double] ] ]  &deathY_,
-              vector[double]  &cutoffs,
+              vector[double] &birthRates,
+              vector[double] &deathRates,
+              vector[double] &ddMatrix,
+              vector[ vector[double] ] &birthX,
+              vector[ vector[double] ] &birthY,
+              vector[ vector[ vector[double] ] ] &deathX_,
+              vector[ vector[ vector[double] ] ] &deathY_,
+              vector[double] &cutoffs,
               int seed,
               double rtimeLimit
         ) except +
 
-        void placeInitialPopulations(
-            vector[ vector[ arrayDouble1 ] ]  &initialCoords
-        ) except +
+        # New approach: placePopulation, spawn_at, kill_at
+        void placePopulation(const vector[ vector[ arrayDouble1 ] ] &initCoords) except +
+        void spawn_at(int s, const arrayDouble1 &inPos) except +
+        void kill_at(int s, const arrayInt1 &cIdx, int victimIdx) except +
 
-        void computeInitialDeathRates() except +
+        # The random event methods
+        void spawn_random() except +
+        void kill_random() except +
         void make_event() except +
         void run_events(int events) except +
         void run_for(double time) except +
-        void spawn_random() except +
-        void kill_random() except +
 
+        # Exposed fields:
         double total_birth_rate
         double total_death_rate
         int    total_num_cells
@@ -315,34 +273,32 @@ cdef extern from "SpatialBirthDeath.h":
         int    event_count
         vector[Cell1] cells
 
-
     cdef cppclass Grid2 "Grid<2>":
         Grid2(int M_,
               arrayDouble2 areaLen,
               arrayInt2 cellCount_,
               bool isPeriodic,
-              vector[double]  &birthRates,
-              vector[double]  &deathRates,
-              vector[double]  &ddMatrix,
-              vector[ vector[double] ]  &birthX,
-              vector[ vector[double] ]  &birthY,
-              vector[ vector[ vector[double] ] ]  &deathX_,
-              vector[ vector[ vector[double] ] ]  &deathY_,
-              vector[double]  &cutoffs,
+              vector[double] &birthRates,
+              vector[double] &deathRates,
+              vector[double] &ddMatrix,
+              vector[ vector[double] ] &birthX,
+              vector[ vector[double] ] &birthY,
+              vector[ vector[ vector[double] ] ] &deathX_,
+              vector[ vector[ vector[double] ] ] &deathY_,
+              vector[double] &cutoffs,
               int seed,
               double rtimeLimit
         ) except +
 
-        void placeInitialPopulations(
-            vector[ vector[ arrayDouble2 ] ]  &initialCoords
-        ) except +
+        void placePopulation(const vector[ vector[ arrayDouble2 ] ] &initCoords) except +
+        void spawn_at(int s, const arrayDouble2 &inPos) except +
+        void kill_at(int s, const arrayInt2 &cIdx, int victimIdx) except +
 
-        void computeInitialDeathRates() except +
+        void spawn_random() except +
+        void kill_random() except +
         void make_event() except +
         void run_events(int events) except +
         void run_for(double time) except +
-        void spawn_random() except +
-        void kill_random() except +
 
         double total_birth_rate
         double total_death_rate
@@ -357,28 +313,27 @@ cdef extern from "SpatialBirthDeath.h":
               arrayDouble3 areaLen,
               arrayInt3 cellCount_,
               bool isPeriodic,
-              vector[double]  &birthRates,
-              vector[double]  &deathRates,
-              vector[double]  &ddMatrix,
-              vector[ vector[double] ]  &birthX,
-              vector[ vector[double] ]  &birthY,
-              vector[ vector[ vector[double] ] ]  &deathX_,
-              vector[ vector[ vector[double] ] ]  &deathY_,
-              vector[double]  &cutoffs,
+              vector[double] &birthRates,
+              vector[double] &deathRates,
+              vector[double] &ddMatrix,
+              vector[ vector[double] ] &birthX,
+              vector[ vector[double] ] &birthY,
+              vector[ vector[ vector[double] ] ] &deathX_,
+              vector[ vector[ vector[double] ] ] &deathY_,
+              vector[double] &cutoffs,
               int seed,
               double rtimeLimit
         ) except +
 
-        void placeInitialPopulations(
-            vector[ vector[ arrayDouble3 ] ] &initialCoords
-        ) except +
+        void placePopulation(const vector[ vector[ arrayDouble3 ] ] &initCoords) except +
+        void spawn_at(int s, const arrayDouble3 &inPos) except +
+        void kill_at(int s, const arrayInt3 &cIdx, int victimIdx) except +
 
-        void computeInitialDeathRates() except +
+        void spawn_random() except +
+        void kill_random() except +
         void make_event() except +
         void run_events(int events) except +
         void run_for(double time) except +
-        void spawn_random() except +
-        void kill_random() except +
 
         double total_birth_rate
         double total_death_rate
@@ -388,21 +343,18 @@ cdef extern from "SpatialBirthDeath.h":
         int    event_count
         vector[Cell3] cells
 
-
 #######################################################
-# 6) Python-visible wrapper classes for each dimension
+# 7) Python wrapper classes
 #######################################################
 
+#==================== Grid<1> ====================#
 cdef class PyGrid1:
-    """
-    A Python wrapper around the C++ Grid<1> class.
-    """
     cdef Grid1* cpp_grid  # Owned pointer
 
     def __cinit__(self,
                   M,
-                  areaLen,         # [x_size]
-                  cellCount,       # [nx]
+                  areaLen,    # e.g. [25.0]
+                  cellCount,  # e.g. [25]
                   isPeriodic,
                   birthRates,
                   deathRates,
@@ -414,7 +366,6 @@ cdef class PyGrid1:
                   cutoffs,
                   seed,
                   rtimeLimit):
-        # Convert python objects to the C++ types:
         cdef arrayDouble1 c_areaLen = pyToStdArrayDouble1(areaLen)
         cdef arrayInt1    c_cellCount = pyToStdArrayInt1(cellCount)
         cdef vector[double] c_birthRates = pyListToVectorDouble(birthRates)
@@ -448,31 +399,49 @@ cdef class PyGrid1:
             del self.cpp_grid
             self.cpp_grid = NULL
 
-    def placeInitialPopulations(self, initCoords):
+    # ------ New function: placePopulation ------
+    def placePopulation(self, initCoords):
         """
-        initCoords[s] = list of [ [x], [x2], ... ] for species s.
+        initCoords[s] = list of [ [x1], [x2], ... ] for species s.
         """
-        cdef vector[ vector[ arrayDouble1 ] ] c_init = pyToInitialCoordsD1(initCoords)
-        self.cpp_grid.placeInitialPopulations(c_init)
+        cdef vector[ vector[arrayDouble1] ] c_init = pyToCoordsD1(initCoords)
+        self.cpp_grid.placePopulation(c_init)
 
-    def computeInitialDeathRates(self):
-        self.cpp_grid.computeInitialDeathRates()
+    # ------ spawn_at / kill_at ------
+    def spawn_at(self, s, pos):
+        """
+        s: int (species index)
+        pos: [x]
+        """
+        cdef arrayDouble1 cpos = pyToStdArrayDouble1(pos)
+        self.cpp_grid.spawn_at(s, cpos)
 
-    def make_event(self):
-        self.cpp_grid.make_event()
+    def kill_at(self, s, cell_idx, victimIdx):
+        """
+        s: int (species index)
+        cell_idx: [i]
+        pos: [x]
+        """
+        cdef arrayInt1 cc = pyToStdArrayInt1(cell_idx)
+        self.cpp_grid.kill_at(s, cc, victimIdx)
 
-    def run_events(self, events):
-        self.cpp_grid.run_events(events)
-
-    def run_for(self, time):
-        self.cpp_grid.run_for(time)
-
+    # ------ random events ------
     def spawn_random(self):
         self.cpp_grid.spawn_random()
 
     def kill_random(self):
         self.cpp_grid.kill_random()
 
+    def make_event(self):
+        self.cpp_grid.make_event()
+
+    def run_events(self, n):
+        self.cpp_grid.run_events(n)
+
+    def run_for(self, duration):
+        self.cpp_grid.run_for(duration)
+
+    # ------ read-only properties ------
     @property
     def total_birth_rate(self):
         return self.cpp_grid.total_birth_rate
@@ -494,38 +463,19 @@ cdef class PyGrid1:
         return self.cpp_grid.event_count
 
     def get_num_cells(self):
-        """
-        Return how many cells are in this 1D grid.
-        """
         return self.cpp_grid.total_num_cells
-        # or if you exposed getNumCells() in C++:
-        # return self.cpp_grid.getNumCells()
 
+    # ------ Access cell data ------
     def get_cell_coords(self, cell_index, species_idx):
-        """
-        Return a Python list of x-coordinates (floats) for all individuals
-        of the given species in the specified cell_index.
-        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
-
         cdef vector[arrayDouble1] coords_vec = cptr.coords[species_idx]
         cdef int n = coords_vec.size()
         cdef list out = []
-
-        cdef double x_val
-
         for i in range(n):
-            # The expression coords_vec[i] is arrayDouble1 (i.e. std::array<double,1>)
-            x_val = coords_vec[i][0]
-            out.append(x_val)
-
+            out.append(coords_vec[i][0])
         return out
 
     def get_cell_death_rates(self, cell_index, species_idx):
-        """
-        Return a Python list of the deathRates for each individual
-        of the given species in cell_index.
-        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[double] drates = cptr.deathRates[species_idx]
         cdef int n = drates.size()
@@ -535,41 +485,31 @@ cdef class PyGrid1:
         return out
 
     def get_cell_population(self, cell_index):
-        """
-        Return a Python list of population counts for all species in this cell.
-        For 1D, that means cell.population[s] is the count for species s.
-        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[int] * pop = &cptr.population
         cdef int m = pop.size()
-        cdef list out = [0] * m
+        cdef list out = [0]*m
         for s in range(m):
             out[s] = pop[s]
         return out
+
     def get_cell_birth_rate(self, cell_index):
-        """
-        Return the total birth rate for this cell (sum over species).
-        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellBirthRate
 
     def get_cell_death_rate(self, cell_index):
-        """
-        Return the total death rate for this cell (sum over species).
-        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellDeathRate
 
+
+#==================== Grid<2> ====================#
 cdef class PyGrid2:
-    """
-    A Python wrapper around the C++ Grid<2> class.
-    """
     cdef Grid2* cpp_grid
 
     def __cinit__(self,
                   M,
-                  areaLen,         # [x_size, y_size]
-                  cellCount,       # [nx, ny]
+                  areaLen,    # [width, height]
+                  cellCount,  # [nx, ny]
                   isPeriodic,
                   birthRates,
                   deathRates,
@@ -614,30 +554,49 @@ cdef class PyGrid2:
             del self.cpp_grid
             self.cpp_grid = NULL
 
-    def placeInitialPopulations(self, initCoords):
+    # ------ placePopulation ------
+    def placePopulation(self, initCoords):
         """
-        initCoords[s] = list of [ [x,y], [x2,y2], ... ] for species s.
+        initCoords[s] = list of [ [x,y], [..], ... ] for species s
         """
-        cdef vector[ vector[ arrayDouble2 ] ] c_init = pyToInitialCoordsD2(initCoords)
-        self.cpp_grid.placeInitialPopulations(c_init)
+        cdef vector[ vector[arrayDouble2] ] c_init = pyToCoordsD2(initCoords)
+        self.cpp_grid.placePopulation(c_init)
 
-    def computeInitialDeathRates(self):
-        self.cpp_grid.computeInitialDeathRates()
+    # ------ spawn_at / kill_at ------
+    def spawn_at(self, s, pos):
+        """
+        s: int
+        pos: [x, y]
+        """
+        cdef arrayDouble2 cpos = pyToStdArrayDouble2(pos)
+        self.cpp_grid.spawn_at(s, cpos)
 
-    def make_event(self):
-        self.cpp_grid.make_event()
+    def kill_at(self, s, cell_idx, victimIdx):
+        """
+        s: int
+        cell_idx: [ix, iy]
+        pos: [x, y]
+        """
+        cdef arrayInt2 cc = pyToStdArrayInt2(cell_idx)
+        self.cpp_grid.kill_at(s, cc, victimIdx)
 
-    def run_events(self,events):
-        self.cpp_grid.run_events(events)
-    def run_for(self, time):
-        self.cpp_grid.run_for(time)
-
+    # ------ random events ------
     def spawn_random(self):
         self.cpp_grid.spawn_random()
 
     def kill_random(self):
         self.cpp_grid.kill_random()
 
+    def make_event(self):
+        self.cpp_grid.make_event()
+
+    def run_events(self, n):
+        self.cpp_grid.run_events(n)
+
+    def run_for(self, duration):
+        self.cpp_grid.run_for(duration)
+
+    # ------ read-only properties ------
     @property
     def total_birth_rate(self):
         return self.cpp_grid.total_birth_rate
@@ -659,39 +618,19 @@ cdef class PyGrid2:
         return self.cpp_grid.event_count
 
     def get_num_cells(self):
-        """
-        Return how many cells are in this 1D grid.
-        """
         return self.cpp_grid.total_num_cells
-        # or if you exposed getNumCells() in C++:
-        # return self.cpp_grid.getNumCells()
 
+    # ------ Access cell data ------
     def get_cell_coords(self, cell_index, species_idx):
-        """
-        Return a Python list of x,y-coordinates (floats) for all individuals
-        of the given species in the specified cell_index.
-        """
         cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
-
         cdef vector[arrayDouble2] coords_vec = cptr.coords[species_idx]
         cdef int n = coords_vec.size()
         cdef list out = []
-
-        cdef double x_val,y_val
-
         for i in range(n):
-            # The expression coords_vec[i] is arrayDouble1 (i.e. std::array<double,1>)
-            x_val = coords_vec[i][0]
-            y_val = coords_vec[i][1]
-            out.append([x_val, y_val])
-
+            out.append([coords_vec[i][0], coords_vec[i][1]])
         return out
 
     def get_cell_death_rates(self, cell_index, species_idx):
-        """
-        Return a Python list of the deathRates for each individual
-        of the given species in cell_index.
-        """
         cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[double] drates = cptr.deathRates[species_idx]
         cdef int n = drates.size()
@@ -701,42 +640,30 @@ cdef class PyGrid2:
         return out
 
     def get_cell_population(self, cell_index):
-        """
-        Return a Python list of population counts for all species in this cell.
-        For 1D, that means cell.population[s] is the count for species s.
-        """
         cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[int] * pop = &cptr.population
         cdef int m = pop.size()
-        cdef list out = [0] * m
+        cdef list out = [0]*m
         for s in range(m):
             out[s] = pop[s]
         return out
+
     def get_cell_birth_rate(self, cell_index):
-        """
-        Return the total birth rate for this cell (sum over species).
-        """
         cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellBirthRate
 
     def get_cell_death_rate(self, cell_index):
-        """
-        Return the total death rate for this cell (sum over species).
-        """
         cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellDeathRate
 
-
+#==================== Grid<3> ====================#
 cdef class PyGrid3:
-    """
-    A Python wrapper around the C++ Grid<3> class.
-    """
     cdef Grid3* cpp_grid
 
     def __cinit__(self,
                   M,
-                  areaLen,         # [x_size, y_size, z_size]
-                  cellCount,       # [nx, ny, nz]
+                  areaLen,     # [x_size, y_size, z_size]
+                  cellCount,   # [nx, ny, nz]
                   isPeriodic,
                   birthRates,
                   deathRates,
@@ -781,31 +708,49 @@ cdef class PyGrid3:
             del self.cpp_grid
             self.cpp_grid = NULL
 
-    def placeInitialPopulations(self, initCoords):
+    # ------ placePopulation ------
+    def placePopulation(self, initCoords):
         """
         initCoords[s] = list of [ [x,y,z], [..], ... ] for species s.
         """
-        cdef vector[ vector[ arrayDouble3 ] ] c_init = pyToInitialCoordsD3(initCoords)
-        self.cpp_grid.placeInitialPopulations(c_init)
+        cdef vector[ vector[arrayDouble3] ] c_init = pyToCoordsD3(initCoords)
+        self.cpp_grid.placePopulation(c_init)
 
-    def computeInitialDeathRates(self):
-        self.cpp_grid.computeInitialDeathRates()
+    # ------ spawn_at / kill_at ------
+    def spawn_at(self, s, pos):
+        """
+        s: int
+        pos: [x, y, z]
+        """
+        cdef arrayDouble3 cpos = pyToStdArrayDouble3(pos)
+        self.cpp_grid.spawn_at(s, cpos)
 
-    def make_event(self):
-        self.cpp_grid.make_event()
+    def kill_at(self, s, cell_idx, victimIdx):
+        """
+        s: int
+        cell_idx: [ix, iy, iz]
+        pos: [x, y, z]
+        """
+        cdef arrayInt3 cc = pyToStdArrayInt3(cell_idx)
+        self.cpp_grid.kill_at(s, cc, victimIdx)
 
-    def run_events(self, events):
-        self.cpp_grid.run_events(events)
-
-    def run_for(self, time):
-        self.cpp_grid.run_for(time)
-
+    # ------ random events ------
     def spawn_random(self):
         self.cpp_grid.spawn_random()
 
     def kill_random(self):
         self.cpp_grid.kill_random()
 
+    def make_event(self):
+        self.cpp_grid.make_event()
+
+    def run_events(self, n):
+        self.cpp_grid.run_events(n)
+
+    def run_for(self, duration):
+        self.cpp_grid.run_for(duration)
+
+    # ------ read-only properties ------
     @property
     def total_birth_rate(self):
         return self.cpp_grid.total_birth_rate
@@ -827,40 +772,21 @@ cdef class PyGrid3:
         return self.cpp_grid.event_count
 
     def get_num_cells(self):
-        """
-        Return how many cells are in this 1D grid.
-        """
         return self.cpp_grid.total_num_cells
-        # or if you exposed getNumCells() in C++:
-        # return self.cpp_grid.getNumCells()
 
+    # ------ Access cell data ------
     def get_cell_coords(self, cell_index, species_idx):
-        """
-        Return a Python list of x,y-coordinates (floats) for all individuals
-        of the given species in the specified cell_index.
-        """
         cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
-
         cdef vector[arrayDouble3] coords_vec = cptr.coords[species_idx]
         cdef int n = coords_vec.size()
         cdef list out = []
-
-        cdef double x_val,y_val,z_val
-
         for i in range(n):
-            # The expression coords_vec[i] is arrayDouble1 (i.e. std::array<double,1>)
-            x_val = coords_vec[i][0]
-            y_val = coords_vec[i][1]
-            z_val = coords_vec[i][2]
-            out.append([x_val, y_val, z_val])
-
+            out.append([coords_vec[i][0],
+                        coords_vec[i][1],
+                        coords_vec[i][2]])
         return out
 
     def get_cell_death_rates(self, cell_index, species_idx):
-        """
-        Return a Python list of the deathRates for each individual
-        of the given species in cell_index.
-        """
         cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[double] drates = cptr.deathRates[species_idx]
         cdef int n = drates.size()
@@ -870,27 +796,18 @@ cdef class PyGrid3:
         return out
 
     def get_cell_population(self, cell_index):
-        """
-        Return a Python list of population counts for all species in this cell.
-        For 1D, that means cell.population[s] is the count for species s.
-        """
         cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[int] * pop = &cptr.population
         cdef int m = pop.size()
-        cdef list out = [0] * m
+        cdef list out = [0]*m
         for s in range(m):
             out[s] = pop[s]
         return out
+
     def get_cell_birth_rate(self, cell_index):
-        """
-        Return the total birth rate for this cell (sum over species).
-        """
         cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellBirthRate
 
     def get_cell_death_rate(self, cell_index):
-        """
-        Return the total death rate for this cell (sum over species).
-        """
         cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellDeathRate
