@@ -23,6 +23,8 @@
 #include <iostream>
 #include <stdexcept>
 
+
+
 /**
  * \brief Performs a linear interpolation on tabulated (x,y) data.
  *
@@ -404,6 +406,8 @@ public:
      */
     int wrapIndex(int i, int dim) const;
 
+    bool inDomain(const std::array<int,DIM>& idx) const;
+
     /**
      * \brief Return a reference to the cell at raw index \p raw, applying wrap
      *        if periodic is enabled.
@@ -524,11 +528,17 @@ public:
      * If `total_birth_rate + total_death_rate` is effectively 0, does nothing.
      */
     void make_event();
+    void run_events(int events);
+    void run_for(double time);
 };
 
 /// \brief Explicit instantiations (see SpatialBirthDeath.cpp)
 extern template class Grid<1>;
 extern template class Grid<2>;
 extern template class Grid<3>;
+
+extern template struct Cell<1>;
+extern template struct Cell<2>;
+extern template struct Cell<3>;
 
 #endif // SPATIAL_BIRTH_DEATH_H

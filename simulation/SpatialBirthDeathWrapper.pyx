@@ -236,7 +236,43 @@ cdef vector[ vector[ arrayDouble3 ] ] pyToInitialCoordsD3(object pyCoords) excep
             arr3 = pyToStdArrayDouble3(xyz)
             result[s][i] = arr3
     return result
+#######################################################
+#  Declare the extern C++ classes: Cell<1>, Cell<2>, Cell<3>
+#######################################################
+cdef extern from "SpatialBirthDeath.h":
+    cdef cppclass Cell1 "Cell<1>":
+        # Expose the fields we want to read.
+        # The type must match exactly how it is declared in the template Cell<DIM>.
+        vector[ vector[arrayDouble1] ] coords
+        vector[ vector[double] ]       deathRates
+        vector[int]                    population
+        vector[double]                cellBirthRateBySpecies
+        vector[double]                cellDeathRateBySpecies
+        double                        cellBirthRate
+        double                        cellDeathRate
+cdef extern from "SpatialBirthDeath.h":
+    cdef cppclass Cell2 "Cell<2>":
+        # Expose the fields we want to read.
+        # The type must match exactly how it is declared in the template Cell<DIM>.
+        vector[ vector[arrayDouble2] ] coords
+        vector[ vector[double] ]       deathRates
+        vector[int]                    population
+        vector[double]                cellBirthRateBySpecies
+        vector[double]                cellDeathRateBySpecies
+        double                        cellBirthRate
+        double                        cellDeathRate
 
+cdef extern from "SpatialBirthDeath.h":
+    cdef cppclass Cell3 "Cell<3>":
+        # Expose the fields we want to read.
+        # The type must match exactly how it is declared in the template Cell<DIM>.
+        vector[ vector[arrayDouble3] ] coords
+        vector[ vector[double] ]       deathRates
+        vector[int]                    population
+        vector[double]                cellBirthRateBySpecies
+        vector[double]                cellDeathRateBySpecies
+        double                        cellBirthRate
+        double                        cellDeathRate
 #######################################################
 # 5) Declare the extern C++ classes: Grid<1>, Grid<2>, Grid<3>
 #######################################################
@@ -266,14 +302,19 @@ cdef extern from "SpatialBirthDeath.h":
 
         void computeInitialDeathRates() except +
         void make_event() except +
+        void run_events(int events) except +
+        void run_for(double time) except +
         void spawn_random() except +
         void kill_random() except +
 
         double total_birth_rate
         double total_death_rate
+        int    total_num_cells
         int    total_population
         double time
         int    event_count
+        vector[Cell1] cells
+
 
     cdef cppclass Grid2 "Grid<2>":
         Grid2(int M_,
@@ -298,14 +339,18 @@ cdef extern from "SpatialBirthDeath.h":
 
         void computeInitialDeathRates() except +
         void make_event() except +
+        void run_events(int events) except +
+        void run_for(double time) except +
         void spawn_random() except +
         void kill_random() except +
 
         double total_birth_rate
         double total_death_rate
+        int    total_num_cells
         int    total_population
         double time
         int    event_count
+        vector[Cell2] cells
 
     cdef cppclass Grid3 "Grid<3>":
         Grid3(int M_,
@@ -330,14 +375,18 @@ cdef extern from "SpatialBirthDeath.h":
 
         void computeInitialDeathRates() except +
         void make_event() except +
+        void run_events(int events) except +
+        void run_for(double time) except +
         void spawn_random() except +
         void kill_random() except +
 
         double total_birth_rate
         double total_death_rate
+        int    total_num_cells
         int    total_population
         double time
         int    event_count
+        vector[Cell3] cells
 
 
 #######################################################
@@ -412,6 +461,12 @@ cdef class PyGrid1:
     def make_event(self):
         self.cpp_grid.make_event()
 
+    def run_events(self, events):
+        self.cpp_grid.run_events(events)
+
+    def run_for(self, time):
+        self.cpp_grid.run_for(time)
+
     def spawn_random(self):
         self.cpp_grid.spawn_random()
 
@@ -438,6 +493,72 @@ cdef class PyGrid1:
     def event_count(self):
         return self.cpp_grid.event_count
 
+    def get_num_cells(self):
+        """
+        Return how many cells are in this 1D grid.
+        """
+        return self.cpp_grid.total_num_cells
+        # or if you exposed getNumCells() in C++:
+        # return self.cpp_grid.getNumCells()
+
+    def get_cell_coords(self, cell_index, species_idx):
+        """
+        Return a Python list of x-coordinates (floats) for all individuals
+        of the given species in the specified cell_index.
+        """
+        cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
+
+        cdef vector[arrayDouble1] coords_vec = cptr.coords[species_idx]
+        cdef int n = coords_vec.size()
+        cdef list out = []
+
+        cdef double x_val
+
+        for i in range(n):
+            # The expression coords_vec[i] is arrayDouble1 (i.e. std::array<double,1>)
+            x_val = coords_vec[i][0]
+            out.append(x_val)
+
+        return out
+
+    def get_cell_death_rates(self, cell_index, species_idx):
+        """
+        Return a Python list of the deathRates for each individual
+        of the given species in cell_index.
+        """
+        cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
+        cdef vector[double] drates = cptr.deathRates[species_idx]
+        cdef int n = drates.size()
+        cdef list out = []
+        for i in range(n):
+            out.append(drates[i])
+        return out
+
+    def get_cell_population(self, cell_index):
+        """
+        Return a Python list of population counts for all species in this cell.
+        For 1D, that means cell.population[s] is the count for species s.
+        """
+        cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
+        cdef vector[int] * pop = &cptr.population
+        cdef int m = pop.size()
+        cdef list out = [0] * m
+        for s in range(m):
+            out[s] = pop[s]
+        return out
+    def get_cell_birth_rate(self, cell_index):
+        """
+        Return the total birth rate for this cell (sum over species).
+        """
+        cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
+        return cptr.cellBirthRate
+
+    def get_cell_death_rate(self, cell_index):
+        """
+        Return the total death rate for this cell (sum over species).
+        """
+        cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
+        return cptr.cellDeathRate
 
 cdef class PyGrid2:
     """
@@ -506,6 +627,11 @@ cdef class PyGrid2:
     def make_event(self):
         self.cpp_grid.make_event()
 
+    def run_events(self,events):
+        self.cpp_grid.run_events(events)
+    def run_for(self, time):
+        self.cpp_grid.run_for(time)
+
     def spawn_random(self):
         self.cpp_grid.spawn_random()
 
@@ -531,6 +657,74 @@ cdef class PyGrid2:
     @property
     def event_count(self):
         return self.cpp_grid.event_count
+
+    def get_num_cells(self):
+        """
+        Return how many cells are in this 1D grid.
+        """
+        return self.cpp_grid.total_num_cells
+        # or if you exposed getNumCells() in C++:
+        # return self.cpp_grid.getNumCells()
+
+    def get_cell_coords(self, cell_index, species_idx):
+        """
+        Return a Python list of x,y-coordinates (floats) for all individuals
+        of the given species in the specified cell_index.
+        """
+        cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
+
+        cdef vector[arrayDouble2] coords_vec = cptr.coords[species_idx]
+        cdef int n = coords_vec.size()
+        cdef list out = []
+
+        cdef double x_val,y_val
+
+        for i in range(n):
+            # The expression coords_vec[i] is arrayDouble1 (i.e. std::array<double,1>)
+            x_val = coords_vec[i][0]
+            y_val = coords_vec[i][1]
+            out.append([x_val, y_val])
+
+        return out
+
+    def get_cell_death_rates(self, cell_index, species_idx):
+        """
+        Return a Python list of the deathRates for each individual
+        of the given species in cell_index.
+        """
+        cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
+        cdef vector[double] drates = cptr.deathRates[species_idx]
+        cdef int n = drates.size()
+        cdef list out = []
+        for i in range(n):
+            out.append(drates[i])
+        return out
+
+    def get_cell_population(self, cell_index):
+        """
+        Return a Python list of population counts for all species in this cell.
+        For 1D, that means cell.population[s] is the count for species s.
+        """
+        cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
+        cdef vector[int] * pop = &cptr.population
+        cdef int m = pop.size()
+        cdef list out = [0] * m
+        for s in range(m):
+            out[s] = pop[s]
+        return out
+    def get_cell_birth_rate(self, cell_index):
+        """
+        Return the total birth rate for this cell (sum over species).
+        """
+        cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
+        return cptr.cellBirthRate
+
+    def get_cell_death_rate(self, cell_index):
+        """
+        Return the total death rate for this cell (sum over species).
+        """
+        cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
+        return cptr.cellDeathRate
 
 
 cdef class PyGrid3:
@@ -600,6 +794,12 @@ cdef class PyGrid3:
     def make_event(self):
         self.cpp_grid.make_event()
 
+    def run_events(self, events):
+        self.cpp_grid.run_events(events)
+
+    def run_for(self, time):
+        self.cpp_grid.run_for(time)
+
     def spawn_random(self):
         self.cpp_grid.spawn_random()
 
@@ -625,3 +825,72 @@ cdef class PyGrid3:
     @property
     def event_count(self):
         return self.cpp_grid.event_count
+
+    def get_num_cells(self):
+        """
+        Return how many cells are in this 1D grid.
+        """
+        return self.cpp_grid.total_num_cells
+        # or if you exposed getNumCells() in C++:
+        # return self.cpp_grid.getNumCells()
+
+    def get_cell_coords(self, cell_index, species_idx):
+        """
+        Return a Python list of x,y-coordinates (floats) for all individuals
+        of the given species in the specified cell_index.
+        """
+        cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
+
+        cdef vector[arrayDouble3] coords_vec = cptr.coords[species_idx]
+        cdef int n = coords_vec.size()
+        cdef list out = []
+
+        cdef double x_val,y_val,z_val
+
+        for i in range(n):
+            # The expression coords_vec[i] is arrayDouble1 (i.e. std::array<double,1>)
+            x_val = coords_vec[i][0]
+            y_val = coords_vec[i][1]
+            z_val = coords_vec[i][2]
+            out.append([x_val, y_val, z_val])
+
+        return out
+
+    def get_cell_death_rates(self, cell_index, species_idx):
+        """
+        Return a Python list of the deathRates for each individual
+        of the given species in cell_index.
+        """
+        cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
+        cdef vector[double] drates = cptr.deathRates[species_idx]
+        cdef int n = drates.size()
+        cdef list out = []
+        for i in range(n):
+            out.append(drates[i])
+        return out
+
+    def get_cell_population(self, cell_index):
+        """
+        Return a Python list of population counts for all species in this cell.
+        For 1D, that means cell.population[s] is the count for species s.
+        """
+        cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
+        cdef vector[int] * pop = &cptr.population
+        cdef int m = pop.size()
+        cdef list out = [0] * m
+        for s in range(m):
+            out[s] = pop[s]
+        return out
+    def get_cell_birth_rate(self, cell_index):
+        """
+        Return the total birth rate for this cell (sum over species).
+        """
+        cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
+        return cptr.cellBirthRate
+
+    def get_cell_death_rate(self, cell_index):
+        """
+        Return the total death rate for this cell (sum over species).
+        """
+        cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
+        return cptr.cellDeathRate

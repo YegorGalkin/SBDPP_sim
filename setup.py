@@ -15,9 +15,9 @@ def check_compiler_type():
 
 compiler_type = check_compiler_type()
 if compiler_type == "msvc":
-    compile_args = ["/std:c++17"]
+    compile_args = ["/std:c++20"]
 else:
-    compile_args = ["-std=c++17"]
+    compile_args = ["-std=c++20"]
 
 extensions = [
     Extension(

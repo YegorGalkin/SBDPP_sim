@@ -130,6 +130,17 @@ int Grid<DIM>::wrapIndex(int i, int dim) const {
 }
 
 template<int DIM>
+bool Grid<DIM>::inDomain(const std::array<int,DIM>& idx) const
+{
+    for (int dim = 0; dim < DIM; dim++) {
+        if (idx[dim] < 0 || idx[dim] >= cell_count[dim]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template<int DIM>
 Cell<DIM>& Grid<DIM>::cellAt(const std::array<int,DIM> &raw)
 {
     std::array<int,DIM> w;
@@ -218,16 +229,20 @@ void Grid<DIM>::computeInitialDeathRates()
                     auto cullRange = cull[s1][s2];
                     forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
                     {
+                        if (!periodic && !inDomain(nIdx)) {
+                            return; // skip out-of-bounds neighbor
+                        }
                         Cell<DIM> & neighCell = cellAt(nIdx);
+
                         for (int j = 0; j < (int)neighCell.coords[s2].size(); j++) {
                             // skip self if same species & same cell & same index
                             if (&thisCell == &neighCell && s1 == s2 && i == j) {
-                                return;
+                                continue;
                             }
                             auto &pos2 = neighCell.coords[s2][j];
                             double dist = distancePeriodic<DIM>(pos1, pos2, area_length, periodic);
                             if (dist > cutoff[s1][s2]) {
-                                return; // no effect beyond cutoff
+                                continue; // no effect beyond cutoff
                             }
                             double interaction = dd[s1][s2] * evalDeathKernel(s1, s2, dist);
 
@@ -369,7 +384,11 @@ void Grid<DIM>::updateInteractionsForNewParticle(
         auto cullRange = cull[sNew][s2];
         forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
         {
+            if (!periodic && !inDomain(nIdx)) {
+                return; // skip out-of-bounds neighbor
+            }
             Cell<DIM> & neighCell = cellAt(nIdx);
+
             for (int j=0; j<(int)neighCell.coords[s2].size(); j++) {
                 // skip self
                 if (&neighCell == &cell && s2 == sNew && j == newIdx) {
@@ -475,6 +494,9 @@ void Grid<DIM>::removeInteractionsOfParticle(
         auto cullRange = cull[sVictim][s2];
         forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
         {
+            if (!periodic && !inDomain(nIdx)) {
+                return; // skip out-of-bounds neighbor
+            }
             Cell<DIM> & neighCell = cellAt(nIdx);
 
             for (int j=0; j<(int)neighCell.coords[s2].size(); j++) {
@@ -523,6 +545,35 @@ void Grid<DIM>::make_event()
         spawn_random();
     } else {
         kill_random();
+    }
+}
+
+template<int DIM>
+void Grid<DIM>::run_events(int events)
+{
+    if (events > 0){
+        for (int i = 0; i < events; i++){
+            if (std::chrono::system_clock::now() > init_time + std::chrono::duration<double>(realtime_limit)){
+                realtime_limit_reached = true;
+                return;
+            }
+            make_event();
+        }
+    }
+}
+
+template<int DIM>
+void Grid<DIM>::run_for(double time)
+{
+    if (time > 0.0){
+        double time0 = this->time;
+        while (this->time < time0 + time){
+            if (std::chrono::system_clock::now() > init_time + std::chrono::duration<double>(realtime_limit)){
+                realtime_limit_reached = true;
+                return;
+            }
+            make_event();
+        }
     }
 }
 
