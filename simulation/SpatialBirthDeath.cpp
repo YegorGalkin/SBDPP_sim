@@ -218,39 +218,53 @@ void Grid<DIM>::computeInitialDeathRates()
         Cell<DIM> &thisCell = cells[cellIndex];
 
         // For each species s1
-        for (int s1 = 0; s1 < M; s1++) {
-            // For each particle i of s1
-            for (int i = 0; i < (int)thisCell.coords[s1].size(); i++) {
+        for (int s1 = 0; s1 < M; s1++)
+        {
+            for (int i = 0; i < (int)thisCell.coords[s1].size(); i++)
+            {
                 auto &pos1 = thisCell.coords[s1][i];
                 double &dr1 = thisCell.deathRates[s1][i];
 
-                // for each s2
-                for (int s2 = 0; s2 < M; s2++) {
+                // For each species s2
+                for (int s2 = 0; s2 < M; s2++)
+                {
                     auto cullRange = cull[s1][s2];
+
+                    // Visit neighbors (including the same cell)
                     forNeighbors<DIM>(cIdx, cullRange, [&](const std::array<int,DIM> &nIdx)
                     {
-                        if (!periodic && !inDomain(nIdx)) {
-                            return; // skip out-of-bounds neighbor
-                        }
+                        // skip out-of-bounds if nonperiodic
+                        if (!periodic && !inDomain(nIdx)) return;
+
                         Cell<DIM> & neighCell = cellAt(nIdx);
 
-                        for (int j = 0; j < (int)neighCell.coords[s2].size(); j++) {
-                            // skip self if same species & same cell & same index
-                            if (&thisCell == &neighCell && s1 == s2 && i == j) {
+                        for (int j = 0; j < (int)neighCell.coords[s2].size(); j++)
+                        {
+                            // skip self if (same cell, same species, same index)
+                            if (&thisCell == &neighCell && s1 == s2 && i == j)
                                 continue;
-                            }
+
                             auto &pos2 = neighCell.coords[s2][j];
                             double dist = distancePeriodic<DIM>(pos1, pos2, area_length, periodic);
-                            if (dist > cutoff[s1][s2]) {
-                                continue; // no effect beyond cutoff
-                            }
-                            double interaction = dd[s1][s2] * evalDeathKernel(s1, s2, dist);
 
-                            // Add to i-th particle's death rate
-                            dr1 += interaction;
-                            thisCell.cellDeathRateBySpecies[s1] += interaction;
-                            thisCell.cellDeathRate += interaction;
-                            total_death_rate += interaction;
+                            if (dist <= cutoff[s1][s2])
+                            {
+                                // (1) Add to particle i's death rate
+                                double interaction = dd[s1][s2] * evalDeathKernel(s1, s2, dist);
+                                dr1 += interaction;
+                                thisCell.cellDeathRateBySpecies[s1] += interaction;
+                                thisCell.cellDeathRate += interaction;
+                                total_death_rate += interaction;
+
+                                // (2) Symmetrical effect: also add to particle j’s rate
+                                //     *if* your model requires both i->j and j->i “killing”.
+                                //     Typically you do want that if dd is symmetrical:
+                                double interaction2 = dd[s2][s1] * evalDeathKernel(s2, s1, dist);
+                                neighCell.deathRates[s2][j] += interaction2;
+                                neighCell.cellDeathRateBySpecies[s2] += interaction2;
+                                neighCell.cellDeathRate += interaction2;
+                                total_death_rate += interaction2;
+                            }
                         }
                     });
                 }
