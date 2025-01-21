@@ -191,7 +191,7 @@ Grid<DIM>::Grid(int M_,
                 double cellSize = area_length[dim]/cell_count[dim];
                 int needed = (int)std::ceil(cutoff[s1][s2]/cellSize);
                 // at least 1 cell
-                cull[s1][s2][dim] = std::max(needed, 1);
+                cull[s1][s2][dim] = std::max(needed, 3);
             }
         }
     }
@@ -545,11 +545,6 @@ void Grid<DIM>::spawn_random()
         parentCell.cellBirthRateBySpecies.end()
     );
     int s = spDist(rng);
-
-    // if no occupant of that species, do nothing
-    if (parentCell.population[s] == 0) {
-        return;
-    }
 
     // 3) pick parent occupant index
     int parentIdx = std::uniform_int_distribution<int>(0, parentCell.population[s]-1)(rng);
