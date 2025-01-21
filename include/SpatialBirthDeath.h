@@ -32,46 +32,20 @@
 double linearInterpolate(const std::vector<double>& xgdat, const std::vector<double>& gdat, double x);
 
 /**
- * \brief Recursively iterate over all neighbors within a cull range around a center index.
- *
- * This is an internal helper used by forNeighbors().
- */
-template<int DIM, typename FUNC>
-void forNeighborsRecur(const std::array<int, DIM> &center,
-                       const std::array<int, DIM> &cull,
-                       std::array<int, DIM> &temp,
-                       int dimIndex,
-                       const FUNC &func)
-{
-    if (dimIndex == DIM) {
-        func(temp);
-    }
-    else {
-        for (int offset = -cull[dimIndex]; offset <= cull[dimIndex]; ++offset) {
-            temp[dimIndex] = center[dimIndex] + offset;
-            forNeighborsRecur<DIM>(center, cull, temp, dimIndex+1, func);
-        }
-    }
-}
-
-/**
  * \brief Iterates over all neighbor cell indices within the specified cull range.
  *
  * \tparam DIM  The dimension of the domain (1, 2, or 3).
  * \tparam FUNC A callable like `[](const std::array<int,DIM> &nIdx){ ... }`.
  *
  * \param center The center cell index.
- * \param cull   The maximum offset in each dimension to search.
+ * \param range   The maximum offset in each dimension to search.
  * \param func   The callback to invoke for each neighbor cell index.
  */
 template<int DIM, typename FUNC>
 void forNeighbors(const std::array<int, DIM> &center,
-                  const std::array<int, DIM> &cull,
-                  const FUNC &func)
-{
-    std::array<int, DIM> temp;
-    forNeighborsRecur<DIM>(center, cull, temp, 0, func);
-}
+                  const std::array<int, DIM> &range,
+                  const FUNC &func);
+
 
 /**
  * \brief Compute Euclidean distance between two points a,b in DIM dimensions,
