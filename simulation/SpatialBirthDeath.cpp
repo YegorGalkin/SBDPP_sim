@@ -15,39 +15,21 @@
 #include <algorithm>  // for std::max, std::min
 #include "SpatialBirthDeath.h"
 
-/**
- * A helper function that linearly interpolates `gdat` at point `x`,
- * assuming xgdat is the sorted set of x-values.
- * Example usage: linearInterpolate(xVals, yVals, x).
- */
-double linearInterpolate(const std::vector<double> &xgdat,
-                         const std::vector<double> &gdat,
-                         double x)
-{
-    // handle boundary
-    if (x <= xgdat.front()) {
-        return gdat.front();
-    }
-    if (x >= xgdat.back()) {
-        return gdat.back();
-    }
 
-    // find interval by binary search or manual
-    // For simplicity, we do a linear scan here (not efficient for large vectors).
-    for (size_t i = 0; i < xgdat.size()-1; i++) {
-        double x0 = xgdat[i];
-        double x1 = xgdat[i+1];
-        if (x >= x0 && x <= x1) {
-            double y0 = gdat[i];
-            double y1 = gdat[i+1];
-            // fraction
-            double t = (x - x0)/(x1 - x0);
-            return (1.0 - t)*y0 + t*y1;
-        }
-    }
-    // fallback (should never reach if we handle boundary above)
-    return gdat.back();
+double linearInterpolate(const std::vector<double>& xgdat, const std::vector<double>& gdat, double x)
+{
+    auto i = std::lower_bound(xgdat.begin(), xgdat.end(), x); // Nearest-above index
+    size_t k = i - xgdat.begin();
+
+    size_t l = k ? k - 1 : 0; // Nearest-below index
+
+    // Linear interpolation formula
+    double x1 = xgdat[l], x2 = xgdat[k];
+    double y1 = gdat[l], y2 = gdat[k];
+
+    return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
 }
+
 
 /**
  * Euclidean distance for DIM dimensions, with optional periodic wrapping.
@@ -553,8 +535,6 @@ void Grid<DIM>::spawn_random()
     // 4) sample radius from the birth kernel
     double u = std::uniform_real_distribution<double>(0.0, 1.0)(rng);
     double radius = evalBirthKernel(s, u);
-    // or if your birth kernel x-values are [0..max], and y-values are the inverse CDF,
-    // you might do linearInterpolate(birth_x[s], birth_y[s], u), etc.
 
     // 5) random direction
     auto dir = randomUnitVector(rng);

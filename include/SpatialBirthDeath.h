@@ -28,14 +28,8 @@
 
 /**
  * \brief A helper that performs linear interpolation on tabulated (x,y) data.
- *
- * If \p x is outside the range of xVals, returns the nearest boundary value.
- * Otherwise, finds the interval [x_i, x_{i+1}] that contains x
- * and linearly interpolates between y_i and y_{i+1}.
  */
-double linearInterpolate(const std::vector<double> &xVals,
-                         const std::vector<double> &yVals,
-                         double x);
+double linearInterpolate(const std::vector<double>& xgdat, const std::vector<double>& gdat, double x);
 
 /**
  * \brief Recursively iterate over all neighbors within a cull range around a center index.
