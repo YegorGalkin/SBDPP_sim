@@ -486,7 +486,7 @@ cdef class PyGrid1:
 
     def get_cell_population(self, cell_index):
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
-        cdef vector[int] * pop = &cptr.population
+        cdef vector[int] pop = cptr.population
         cdef int m = pop.size()
         cdef list out = [0]*m
         for s in range(m):
@@ -641,7 +641,7 @@ cdef class PyGrid2:
 
     def get_cell_population(self, cell_index):
         cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
-        cdef vector[int] * pop = &cptr.population
+        cdef vector[int] pop = cptr.population
         cdef int m = pop.size()
         cdef list out = [0]*m
         for s in range(m):
@@ -797,7 +797,7 @@ cdef class PyGrid3:
 
     def get_cell_population(self, cell_index):
         cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
-        cdef vector[int] * pop = &cptr.population
+        cdef vector[int] pop = cptr.population
         cdef int m = pop.size()
         cdef list out = [0]*m
         for s in range(m):
