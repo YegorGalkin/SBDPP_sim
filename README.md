@@ -1,7 +1,3 @@
-Below is an example **README.md** that explains how to install the extension, create instances of the simulator, and interact with it. Feel free to adapt to your exact directory structure and usage patterns.
-
----
-
 # Spatial Birth-Death Simulator (Cython Wrapper)
 
 This directory provides a C++/Cython implementation of an N-dimensional birth-death process simulator with spatially explicit interactions. You can build it as a Python extension module, then import and use it from Python to:
@@ -29,6 +25,7 @@ SBDPP_sim/
 │    ├── SpatialBirthDeathWrapper.pyx
 │    └── __init__.py
 ├── setup.py
+├── requirements.txt
 └── README.md   # <--- this file
 ```
 
@@ -38,6 +35,7 @@ The `setup.py` script uses `Cython.Build.cythonize` to compile and link the `.py
 
 ```bash
 cd SBDPP_sim
+pip install -r requirements.txt
 python setup.py build_ext --inplace
 ```
 
