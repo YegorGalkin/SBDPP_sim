@@ -263,6 +263,7 @@ cdef extern from "SpatialBirthDeath.h":
         void make_event() except +
         void run_events(int events) except +
         void run_for(double time) except +
+        vector[vector[arrayDouble1]] get_all_particle_coords() except +
 
         # Exposed fields:
         double total_birth_rate
@@ -299,6 +300,7 @@ cdef extern from "SpatialBirthDeath.h":
         void make_event() except +
         void run_events(int events) except +
         void run_for(double time) except +
+        vector[vector[arrayDouble2]] get_all_particle_coords() except +
 
         double total_birth_rate
         double total_death_rate
@@ -334,6 +336,7 @@ cdef extern from "SpatialBirthDeath.h":
         void make_event() except +
         void run_events(int events) except +
         void run_for(double time) except +
+        vector[vector[arrayDouble3]] get_all_particle_coords() except +
 
         double total_birth_rate
         double total_death_rate
@@ -501,6 +504,27 @@ cdef class PyGrid1:
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellDeathRate
 
+    def get_all_particle_coords(self):
+        """
+        Returns aggregated coordinates for all particles in the grid,
+        grouped by species. For a 1D grid, each coordinate is a float.
+
+        Returns:
+            A list of lists: one list per species, where each inner list
+            contains the x-coordinate (a float) for every particle.
+        """
+        cdef vector[vector[arrayDouble1]] c_all = self.cpp_grid.get_all_particle_coords()
+        cdef int ns = c_all.size()
+        py_out = []
+        cdef int i, j
+        for i in range(ns):
+            species_coords = []
+            for j in range(c_all[i].size()):
+                # For 1D, each coordinate is stored in a std::array<double,1>
+                species_coords.append(c_all[i][j][0])
+            py_out.append(species_coords)
+        return py_out
+
 
 #==================== Grid<2> ====================#
 cdef class PyGrid2:
@@ -655,6 +679,26 @@ cdef class PyGrid2:
     def get_cell_death_rate(self, cell_index):
         cdef Cell2 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellDeathRate
+
+    def get_all_particle_coords(self):
+        """
+        Returns aggregated coordinates for all particles in the grid,
+        grouped by species. For a 2D grid, each coordinate is a list [x, y].
+
+        Returns:
+            A list of lists: one list per species, where each inner list
+            contains the [x, y] coordinates of a particle.
+        """
+        cdef vector[vector[arrayDouble2]] c_all = self.cpp_grid.get_all_particle_coords()
+        cdef int ns = c_all.size()
+        py_out = []
+        cdef int i, j
+        for i in range(ns):
+            species_coords = []
+            for j in range(c_all[i].size()):
+                species_coords.append([c_all[i][j][0], c_all[i][j][1]])
+            py_out.append(species_coords)
+        return py_out
 
 #==================== Grid<3> ====================#
 cdef class PyGrid3:
@@ -811,3 +855,25 @@ cdef class PyGrid3:
     def get_cell_death_rate(self, cell_index):
         cdef Cell3 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellDeathRate
+
+    def get_all_particle_coords(self):
+        """
+        Returns aggregated coordinates for all particles in the grid,
+        grouped by species. For a 3D grid, each coordinate is a list [x, y, z].
+
+        Returns:
+            A list of lists: one list per species, where each inner list
+            contains the [x, y, z] coordinates of a particle.
+        """
+        cdef vector[vector[arrayDouble3]] c_all = self.cpp_grid.get_all_particle_coords()
+        cdef int ns = c_all.size()
+        py_out = []
+        cdef int i, j
+        for i in range(ns):
+            species_coords = []
+            for j in range(c_all[i].size()):
+                species_coords.append([c_all[i][j][0],
+                                       c_all[i][j][1],
+                                       c_all[i][j][2]])
+            py_out.append(species_coords)
+        return py_out

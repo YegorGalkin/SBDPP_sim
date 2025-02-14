@@ -347,6 +347,14 @@ public:
      * \param time How much additional simulation time to run.
      */
     void run_for(double time);
+
+    /**
+     * \brief Returns aggregated coordinates for all particles for each species.
+     *
+     * For each species s (0 <= s < M), returns a vector of particle coordinates.
+     * The return type is a vector (per species) of std::array<double, DIM>.
+     */
+    std::vector< std::vector< std::array<double, DIM> > > get_all_particle_coords() const;
 };
 
 // Explicit template instantiations

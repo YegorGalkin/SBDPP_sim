@@ -666,9 +666,28 @@ void Grid<DIM>::run_for(double duration)
     }
 }
 
+template<int DIM>
+std::vector< std::vector< std::array<double, DIM> > >
+Grid<DIM>::get_all_particle_coords() const {
+    // Prepare one vector per species.
+    std::vector< std::vector< std::array<double, DIM> > > result(M);
+    // Loop over all cells
+    for (const auto &cell : cells) {
+        // For each species, add the cell’s coordinates to the species vector.
+        for (int s = 0; s < M; ++s) {
+            result[s].insert(result[s].end(), cell.coords[s].begin(), cell.coords[s].end());
+        }
+    }
+    return result;
+}
+
 //============================================================
 //  Explicit template instantiations
 //============================================================
 template class Grid<1>;
 template class Grid<2>;
 template class Grid<3>;
+
+template std::vector< std::vector< std::array<double, 1> > > Grid<1>::get_all_particle_coords() const;
+template std::vector< std::vector< std::array<double, 2> > > Grid<2>::get_all_particle_coords() const;
+template std::vector< std::vector< std::array<double, 3> > > Grid<3>::get_all_particle_coords() const;
