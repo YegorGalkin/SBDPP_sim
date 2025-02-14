@@ -5,3 +5,5 @@
 *.html
 /simulation/grid_1d_interface.cpp
 /simulation/SpatialBirthDeathWrapper.cpp
+*.mp4
+*.csv
