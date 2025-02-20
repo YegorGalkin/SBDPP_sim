@@ -687,7 +687,3 @@ Grid<DIM>::get_all_particle_coords() const {
 template class Grid<1>;
 template class Grid<2>;
 template class Grid<3>;
-
-template std::vector< std::vector< std::array<double, 1> > > Grid<1>::get_all_particle_coords() const;
-template std::vector< std::vector< std::array<double, 2> > > Grid<2>::get_all_particle_coords() const;
-template std::vector< std::vector< std::array<double, 3> > > Grid<3>::get_all_particle_coords() const;
