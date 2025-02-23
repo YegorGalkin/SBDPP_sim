@@ -1,3 +1,4 @@
+```markdown
 # Spatial Birth-Death Simulator (Cython Wrapper)
 
 This repository contains a C++/Cython implementation of an N-dimensional birth-death point process simulator with spatially explicit interactions. You can build it as a Python extension module, then import and use it from Python to:
@@ -191,22 +192,20 @@ The simulator uses **radially symmetric** kernels for both births and deaths, sp
 
 ### 4.1 Birth Kernels (Inverse Radial CDF)
 
-For each species `s`, you pass `(birthX[s], birthY[s])` representing an **inverse radial CDF** from `0..1` to `0..∞`. Specifically:
+For each species `s`, you pass `(birthX[s], birthY[s])` representing an **inverse radial CDF** from `[0..1]` to `[0..∞)`. Specifically:
 
-1. **`birthX[s]`** is a sorted array of quantiles in `[0..1]`.  
+1. **`birthX[s]`** is a sorted array of quantiles in `[0..1)`.  
 2. **`birthY[s]`** is the corresponding array of radii, i.e. `ICDF(u)`.
 
-When a birth event occurs for species `s`, the simulator:
-1. Draws a uniform `u ∈ [0,1)`.  
-2. Interpolates on `(birthX[s], birthY[s])` to get a radius `r`.  
-3. In **1D**, that radius is multiplied by a random sign (+1 or -1) so the new individual can appear to the left or right. Note that the **inverse radial CDF** is strictly nonnegative, so the sign is handled separately by the simulator.  
-4. In **2D** or **3D**, that radius is multiplied by a random direction (angle in 2D, angles in 3D) to place the new individual around the parent.
-
-Because we use the full range `u ∈ [0..1]` for each species, the birth kernel is automatically normalized in a cumulative sense (i.e., the ICDF covers the entire distribution of possible radii).
+When a birth event occurs for species `s`:
+1. A uniform random `u ∈ [0,1]` is drawn.  
+2. The radius `r` is found by linear interpolation of `(birthX[s], birthY[s])`.  
+3. **1D case**: That radius is multiplied by a random sign (+1 or -1) so the new individual may appear left or right. Since `birthY[s]` only stores nonnegative values, the sign is handled by the simulator itself.  
+4. **2D/3D case**: That radius is multiplied by a random direction in 2D (angle) or in 3D (two angles).
 
 #### 1D Example (Half-Normal with Parameter σ)
 
-Using `scipy.stats.halfnorm` for a half-normal distribution with scale=σ:
+Using `scipy.stats.halfnorm` for a half-normal distribution with scale=σ (equivalent to `|Normal(0,σ)|`):
 
 ```python
 import numpy as np
@@ -214,21 +213,17 @@ from scipy.stats import halfnorm
 
 sigma = 1.0
 N = 1001
-epsilon = 1e-3   # to avoid infinite at u=1
+epsilon = 1e-3  # to avoid potential infinite tail at u=1
 uvals = np.linspace(0, 1 - epsilon, N)
-
-# halfnorm(scale=sigma) is the distribution of |Normal(0, σ)|.
 rvals = halfnorm.ppf(uvals, scale=sigma)
 
 birthX_1d = [uvals.tolist()]  # single species
 birthY_1d = [rvals.tolist()]
 ```
 
-*(You could also build a half-normal by taking `abs(norm.ppf(...))`, but `halfnorm` is direct.)*
-
 #### 2D Example (Rayleigh for Standard Normal, Parameter σ)
 
-A 2D standard normal leads to a Rayleigh distribution for the radial component, with parameter `scale=σ`. If your normal distribution is `N(0, σ^2)` in each dimension, the Rayleigh distribution has `scale=σ`.
+A 2D standard normal (with each axis ~ N(0,σ^2)) has a Rayleigh radial distribution, `rayleigh(scale=σ)`:
 
 ```python
 import numpy as np
@@ -238,19 +233,15 @@ sigma = 1.0
 N = 1001
 epsilon = 1e-3
 uvals = np.linspace(0, 1 - epsilon, N)
-
-# rayleigh(scale=sigma)
 rvals = rayleigh.ppf(uvals, scale=sigma)
 
 birthX_2d = [uvals.tolist()]
 birthY_2d = [rvals.tolist()]
 ```
 
-The simulator will pick radius `r` from `[0..∞)` according to this distribution, then pick a random angle θ ∈ [0, 2π).
-
 #### 3D Example (Maxwell-Boltzmann for Standard Normal, Parameter σ)
 
-A 3D standard normal leads to a Maxwell–Boltzmann distribution for the radial component, with parameter `scale=σ`.
+A 3D standard normal leads to a Maxwell–Boltzmann radial distribution, `maxwell(scale=σ)`:
 
 ```python
 import numpy as np
@@ -260,72 +251,81 @@ sigma = 1.0
 N = 1001
 epsilon = 1e-3
 uvals = np.linspace(0, 1 - epsilon, N)
-
-# maxwell(scale=sigma)
 rvals = maxwell.ppf(uvals, scale=sigma)
 
 birthX_3d = [uvals.tolist()]
 birthY_3d = [rvals.tolist()]
 ```
 
-The simulator draws `r` from this distribution, then multiplies by a random 3D direction (two angles) to position the new individual.
-
 ---
 
 ### 4.2 Death Kernels (Normalized in 1D, 2D, 3D)
 
-For each pair `(s1, s2)`, you must pass `(deathX[s1][s2], deathY[s1][s2])`, plus a **cutoff** in `cutoffs[s1*M + s2]`. If two individuals of species `s1` and `s2` are at distance `r` (within the cutoff), the contribution to occupant j’s death rate is `dd[s1][s2] * kernel(r)` (interpolated from the `(X, Y)` table).
+For each pair `(s1, s2)`, you must pass `(deathX[s1][s2], deathY[s1][s2])`, plus a **cutoff** in `cutoffs[s1*M + s2]`. If two individuals of species `s1` and `s2` are at distance `r` (within the cutoff), the contribution to occupant j’s death rate is `dd[s1][s2] * kernel(r)` (interpolated from `(X, Y)`).
 
-**Important**: The model assumes these kernels are **normalized** when integrated with respect to the dimension’s volume element. That is:
+**Important**: The model assumes these kernels are **normalized** when integrated with respect to the dimension’s volume element:
 
-- In 1D, \(\int_0^\infty K(r)\,dr = 1\).  
-- In 2D, \(\int_0^\infty 2\pi r\,K(r)\,dr = 1\).  
-- In 3D, \(\int_0^\infty 4\pi r^2\,K(r)\,dr = 1\).  
+```
+1D:  ∫(0..∞) K(r) dr = 1
+2D:  ∫(0..∞) 2π r K(r) dr = 1
+3D:  ∫(0..∞) 4π r^2 K(r) dr = 1
+```
 
-Such normalization ensures that if `dd[s1][s2] = 1`, the “average” effect integrates to 1 over all space (or up to the cutoff). You typically integrate from `r=0` to `r=cutoff`.
+Such normalization ensures that if `dd[s1][s2] = 1`, the total “average” effect is 1 over the domain (or up to the cutoff).
 
 #### Example: 2D Standard Normal Kernel
 
-For a 2D standard normal with standard deviation σ, the radial factor can be:
+For a 2D standard normal with std dev σ, one valid radial factor is:
 
-\[
-  K(r) \;=\; \frac{1}{\sigma^2} \exp\!\Bigl(-\frac{r^2}{2\sigma^2}\Bigr)
-\]
+```
+K(r) = (1 / σ^2) * exp( -r^2 / (2σ^2) )
+```
 
-so that \(\int_0^\infty 2\pi r \,K(r)\,dr = 1\). In code:
+so that
+
+```
+∫(0..∞) 2π r * K(r) dr = 1.
+```
+
+Discretize up to some `max_r` (the cutoff):
 
 ```python
 import numpy as np
 
 def normal_2d_kernel(r, sigma=1.0):
-    return (1.0 / sigma**2) * np.exp(-0.5*(r**2)/(sigma**2))
+    return (1.0 / (sigma**2)) * np.exp(-0.5*(r**2)/(sigma**2))
 
 max_r = 5.0
 N = 501
 distances = np.linspace(0, max_r, N)
 values = [normal_2d_kernel(r, sigma=1.0) for r in distances]
 
-# Suppose M=1 (one species)
-deathX_2d = [[ distances.tolist() ]]
+deathX_2d = [[ distances.tolist() ]]  # if M=1 (one species)
 deathY_2d = [[ values ]]
 cutoffs = [max_r]
 ```
 
 #### Example: 3D Standard Normal Kernel
 
-For a 3D standard normal with standard deviation σ, you want \(\int_0^\infty 4\pi r^2 \,K(r)\,dr = 1\). A suitable form is:
+For a 3D standard normal with std dev σ, you want
 
-\[
-  K(r) \;=\; \frac{1}{\sigma^3 (2\pi)^{3/2}}\,4\pi\, e^{-r^2/(2\sigma^2)}\, r^2
-\]
+```
+∫(0..∞) 4π r^2 K(r) dr = 1.
+```
 
-which integrates to 1. You can approximate this numerically up to a chosen cutoff:
+A possible radial factor is:
+
+```
+K(r) = (constant) * exp( - r^2 / (2σ^2) ) * (r^2 / σ^2)
+```
+
+where the constant is chosen so the integral is 1. For instance:
 
 ```python
 import numpy as np
 
 def normal_3d_kernel(r, sigma=1.0):
-    # We'll do a simplified factor that ensures normalization in 3D:
+    # Approximates the correct factor for 3D normalization
     c = 4.0 * np.pi / ((2.0 * np.pi)**1.5 * sigma**3)
     return c * np.exp(-0.5*(r**2)/(sigma**2)) * (r**2 / sigma**2)
 
@@ -381,4 +381,13 @@ allcoords = g2.get_all_particle_coords()
 print("All coords (2D):", allcoords)
 ```
 
+---
 
+## 6. License & Contributions
+
+- **License**: [Your License Here], see `LICENSE.txt`.
+- Contributions & bug reports are welcome.  
+- Please open issues or pull requests to improve this simulator!
+
+Enjoy simulating your spatial birth‐death processes!
+```
