@@ -19,9 +19,10 @@ SBDPP_sim/
 ├── examples/
 ├── include/
 │   └── SpatialBirthDeath.h
+├── src/
+│   └── SpatialBirthDeath.cpp
 ├── simulation/
 │   ├── __init__.py
-│   ├── SpatialBirthDeath.cpp
 │   └── SpatialBirthDeathWrapper.pyx
 ├── requirements.txt
 ├── setup.py
@@ -30,7 +31,7 @@ SBDPP_sim/
 ```
 
 - **`include/SpatialBirthDeath.h`**: C++ header for the simulator.
-- **`simulation/SpatialBirthDeath.cpp`**: C++ source file with core logic.
+- **`src/SpatialBirthDeath.cpp`**: C++ source file with core logic.
 - **`simulation/SpatialBirthDeathWrapper.pyx`**: Cython interface to the C++ code.
 - **`setup.py`**: Build script using setuptools/Cython.
 - **`examples/`**: (Optional) example scripts or notebooks.
