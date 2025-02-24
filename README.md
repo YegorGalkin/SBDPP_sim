@@ -1,4 +1,3 @@
-```markdown
 # Spatial Birth-Death Simulator (Cython Wrapper)
 
 This repository contains a C++/Cython implementation of an N-dimensional birth-death point process simulator with spatially explicit interactions. You can build it as a Python extension module, then import and use it from Python to:
