@@ -29,7 +29,8 @@
 /**
  * \brief A helper that performs linear interpolation on tabulated (x,y) data.
  */
-double linearInterpolate(const std::vector<double>& xgdat, const std::vector<double>& gdat, double x);
+double linearInterpolate(const std::vector<double> &xgdat, const std::vector<double> &gdat,
+                         double x);
 
 /**
  * \brief Iterates over all neighbor cell indices within the specified cull range.
@@ -41,11 +42,9 @@ double linearInterpolate(const std::vector<double>& xgdat, const std::vector<dou
  * \param range   The maximum offset in each dimension to search.
  * \param func   The callback to invoke for each neighbor cell index.
  */
-template<int DIM, typename FUNC>
-void forNeighbors(const std::array<int, DIM> &center,
-                  const std::array<int, DIM> &range,
+template <int DIM, typename FUNC>
+void forNeighbors(const std::array<int, DIM> &center, const std::array<int, DIM> &range,
                   const FUNC &func);
-
 
 /**
  * \brief Compute Euclidean distance between two points a,b in DIM dimensions,
@@ -60,11 +59,9 @@ void forNeighbors(const std::array<int, DIM> &center,
  * \param periodic Whether to apply periodic wrapping.
  * \return         The Euclidean distance between a and b.
  */
-template<int DIM>
-double distancePeriodic(const std::array<double,DIM> &a,
-                        const std::array<double,DIM> &b,
-                        const std::array<double,DIM> &length,
-                        bool periodic);
+template <int DIM>
+double distancePeriodic(const std::array<double, DIM> &a, const std::array<double, DIM> &b,
+                        const std::array<double, DIM> &length, bool periodic);
 
 /**
  * \brief A Cell stores data for multiple species within one grid cell.
@@ -80,13 +77,12 @@ double distancePeriodic(const std::array<double,DIM> &a,
  *  - cellBirthRate (sum over s)
  *  - cellDeathRate (sum over s)
  */
-template<int DIM>
-struct Cell
-{
+template <int DIM>
+struct Cell {
     /// coords[s]: vector of positions of species s
-    std::vector< std::vector< std::array<double,DIM> > > coords;
+    std::vector<std::vector<std::array<double, DIM> > > coords;
     /// deathRates[s]: vector of per-particle death rates for species s
-    std::vector< std::vector<double> > deathRates;
+    std::vector<std::vector<double> > deathRates;
     /// population[s]: number of individuals of species s
     std::vector<int> population;
 
@@ -99,17 +95,17 @@ struct Cell
     /// Sum of all species' death rates in this cell
     double cellDeathRate;
 
-    Cell() : cellBirthRate(0.0), cellDeathRate(0.0) {}
+    Cell() : cellBirthRate(0.0), cellDeathRate(0.0) {
+    }
 
     /// \brief Allocate data structures for M species
-    void initSpecies(int M)
-        {
-            coords.resize(M);
-            deathRates.resize(M);
-            population.resize(M, 0);
-            cellBirthRateBySpecies.resize(M, 0.0);
-            cellDeathRateBySpecies.resize(M, 0.0);
-        }
+    void initSpecies(int M) {
+        coords.resize(M);
+        deathRates.resize(M);
+        population.resize(M, 0);
+        cellBirthRateBySpecies.resize(M, 0.0);
+        cellDeathRateBySpecies.resize(M, 0.0);
+    }
 };
 
 /**
@@ -133,18 +129,17 @@ struct Cell
  *  - \c placePopulation(...): loops over initial coords, calls spawn_at
  *  - \c spawn_random(...) / \c kill_random(...): picks random event victims or parents
  */
-template<int DIM>
-class Grid
-{
+template <int DIM>
+class Grid {
 public:
     /// Number of species
     int M;
 
     /// Physical length of the domain in each dimension
-    std::array<double,DIM> area_length;
+    std::array<double, DIM> area_length;
 
     /// Number of cells along each dimension
-    std::array<int,DIM> cell_count;
+    std::array<int, DIM> cell_count;
 
     /// If true, boundaries are periodic
     bool periodic;
@@ -154,25 +149,25 @@ public:
     std::vector<double> d;  ///< d[s]
 
     /// Pairwise competition magnitudes: dd[s1][s2]
-    std::vector< std::vector<double> > dd;
+    std::vector<std::vector<double> > dd;
 
     /// Birth (dispersal) kernel data
     /// birth_x[s] and birth_y[s] for species s
-    std::vector< std::vector<double> > birth_x;
-    std::vector< std::vector<double> > birth_y;
+    std::vector<std::vector<double> > birth_x;
+    std::vector<std::vector<double> > birth_y;
 
     /// Death (competition) kernel data: death_x[s1][s2], death_y[s1][s2]
-    std::vector< std::vector< std::vector<double> > > death_x;
-    std::vector< std::vector< std::vector<double> > > death_y;
+    std::vector<std::vector<std::vector<double> > > death_x;
+    std::vector<std::vector<std::vector<double> > > death_y;
 
     /// cutoff[s1][s2]: maximum distance for s2->s1 interactions
-    std::vector< std::vector<double> > cutoff;
+    std::vector<std::vector<double> > cutoff;
 
     /// cull[s1][s2][dim]: how many cells to check in +/- directions for neighbor search
-    std::vector< std::vector< std::array<int,DIM> > > cull;
+    std::vector<std::vector<std::array<int, DIM> > > cull;
 
     /// The grid cells
-    std::vector< Cell<DIM> > cells;
+    std::vector<Cell<DIM> > cells;
 
     /// Total number of cells = product of cell_count[dim]
     int total_num_cells;
@@ -221,27 +216,21 @@ public:
      * \param seed       RNG seed
      * \param rtimeLimit Real-time limit in seconds
      */
-    Grid(int M_,
-         const std::array<double,DIM> &areaLen,
-         const std::array<int,DIM> &cellCount_,
-         bool isPeriodic,
-         const std::vector<double> &birthRates,
-         const std::vector<double> &deathRates,
-         const std::vector<double> &ddMatrix,
-         const std::vector< std::vector<double> > &birthX,
-         const std::vector< std::vector<double> > &birthY,
-         const std::vector< std::vector< std::vector<double> > > &deathX_,
-         const std::vector< std::vector< std::vector<double> > > &deathY_,
-         const std::vector<double> &cutoffs,
-         int seed,
-         double rtimeLimit);
+    Grid(int M_, const std::array<double, DIM> &areaLen, const std::array<int, DIM> &cellCount_,
+         bool isPeriodic, const std::vector<double> &birthRates,
+         const std::vector<double> &deathRates, const std::vector<double> &ddMatrix,
+         const std::vector<std::vector<double> > &birthX,
+         const std::vector<std::vector<double> > &birthY,
+         const std::vector<std::vector<std::vector<double> > > &deathX_,
+         const std::vector<std::vector<std::vector<double> > > &deathY_,
+         const std::vector<double> &cutoffs, int seed, double rtimeLimit);
 
     // --- Basic utilities for indexing cells ---
-    int flattenIdx(const std::array<int,DIM> &idx) const;
-    std::array<int,DIM> unflattenIdx(int cellIndex) const;
+    int flattenIdx(const std::array<int, DIM> &idx) const;
+    std::array<int, DIM> unflattenIdx(int cellIndex) const;
     int wrapIndex(int i, int dim) const;
-    bool inDomain(const std::array<int,DIM>& idx) const;
-    Cell<DIM>& cellAt(const std::array<int,DIM> &raw);
+    bool inDomain(const std::array<int, DIM> &idx) const;
+    Cell<DIM> &cellAt(const std::array<int, DIM> &raw);
 
     // --- Kernel evaluation helpers ---
     double evalBirthKernel(int s, double x) const;
@@ -251,7 +240,7 @@ public:
      * \brief Create a random unit vector in DIM dimensions.
      *        (In 1D, returns either +1 or -1).
      */
-    std::array<double,DIM> randomUnitVector(std::mt19937 & rng);
+    std::array<double, DIM> randomUnitVector(std::mt19937 &rng);
 
     // ------------------------------------------------------------------
     // Refactored interface: direct spawn/kill
@@ -264,7 +253,7 @@ public:
      * \param s     Species index
      * \param inPos The desired real-space position
      */
-    void spawn_at(int s, const std::array<double,DIM> &inPos);
+    void spawn_at(int s, const std::array<double, DIM> &inPos);
 
     /**
      * \brief Remove exactly one particle of species s in cell cIdx with coordinate posKill.
@@ -274,7 +263,7 @@ public:
      * \param cIdx    The cell index array
      * \param posKill The coordinate to match
      */
-    void kill_at(int s, const std::array<int,DIM> &cIdx, int victimIdx);
+    void kill_at(int s, const std::array<int, DIM> &cIdx, int victimIdx);
 
     /**
      * \brief Removes the interactions contributed by a single particle
@@ -283,9 +272,7 @@ public:
      * For each neighbor cell (within cull[sVictim][s2]), we subtract i->j
      * and j->i interactions from occupant j in species s2.
      */
-    void removeInteractionsOfParticle(const std::array<int,DIM> &cIdx,
-                                      int sVictim,
-                                      int victimIdx);
+    void removeInteractionsOfParticle(const std::array<int, DIM> &cIdx, int sVictim, int victimIdx);
 
     /**
      * \brief Loop over a list of positions for each species and call spawn_at.
@@ -293,7 +280,7 @@ public:
      *
      * \param initCoords initCoords[s] is a vector of positions for species s.
      */
-    void placePopulation(const std::vector< std::vector< std::array<double,DIM> > > &initCoords);
+    void placePopulation(const std::vector<std::vector<std::array<double, DIM> > > &initCoords);
 
     // ------------------------------------------------------------------
     // Random birth/death events
@@ -354,7 +341,7 @@ public:
      * For each species s (0 <= s < M), returns a vector of particle coordinates.
      * The return type is a vector (per species) of std::array<double, DIM>.
      */
-    std::vector< std::vector< std::array<double, DIM> > > get_all_particle_coords() const;
+    std::vector<std::vector<std::array<double, DIM> > > get_all_particle_coords() const;
 };
 
 // Explicit template instantiations
@@ -366,5 +353,4 @@ extern template struct Cell<1>;
 extern template struct Cell<2>;
 extern template struct Cell<3>;
 
-#endif // SPATIAL_BIRTH_DEATH_H
-
+#endif  // SPATIAL_BIRTH_DEATH_H
