@@ -20,3 +20,6 @@ __pycache__/
 # Tools
 .clang-format
 .clang-tidy
+
+# IDEs
+.idea
