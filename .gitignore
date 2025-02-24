@@ -1,9 +1,22 @@
-/build
-/.idea
-/venv
+# Build artifacts
+build/
+*.so
 *.pyd
-*.html
-/simulation/grid_1d_interface.cpp
+
+# Python cache
+__pycache__/
+
+# Virtual environment
+.venv
+
+# Cython generated files
 /simulation/SpatialBirthDeathWrapper.cpp
+*.html
+
+# Data files
 *.mp4
 *.csv
+
+# Tools
+.clang-format
+.clang-tidy
