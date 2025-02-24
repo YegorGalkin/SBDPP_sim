@@ -13,7 +13,7 @@
 #include <array>
 #include <chrono>
 #include <algorithm>  // for std::max, std::min
-#include "SpatialBirthDeath.h"
+#include "../include/SpatialBirthDeath.h"
 
 double linearInterpolate(const std::vector<double> &xgdat, const std::vector<double> &gdat,
                          double x) {

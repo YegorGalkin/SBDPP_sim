@@ -19,9 +19,10 @@ SBDPP_sim/
 ├── examples/
 ├── include/
 │   └── SpatialBirthDeath.h
+├── src/
+│   └── SpatialBirthDeath.cpp
 ├── simulation/
 │   ├── __init__.py
-│   ├── SpatialBirthDeath.cpp
 │   └── SpatialBirthDeathWrapper.pyx
 ├── requirements.txt
 ├── setup.py
