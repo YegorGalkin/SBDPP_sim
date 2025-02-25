@@ -294,7 +294,7 @@ Discretize up to some `max_r` (the cutoff):
 import numpy as np
 
 def normal_2d_kernel(r, sigma=1.0):
-    return (1.0 / (sigma**2)) * np.exp(-0.5*(r**2)/(sigma**2))
+    return 1 / (2 * np.pi * sigma) * np.exp(-0.5*(r**2)/(sigma**2))
 
 max_r = 5.0
 N = 501
@@ -328,7 +328,7 @@ import numpy as np
 
 def normal_3d_kernel(r, sigma=1.0):
     # Approximates the correct factor for 3D normalization
-    c = 1 / (2 * np.pi)**(3/2)
+    c = 1 / (2 * np.pi * sigma)**(3/2)
     return c * np.exp(-0.5*(r**2)/(sigma**2)) 
 
 max_r = 5.0
