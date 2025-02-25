@@ -278,13 +278,14 @@ Such normalization ensures that if `dd[s1][s2] = 1`, the total “average” eff
 For a 2D standard normal with std dev σ, one valid radial factor is:
 
 ```
-K(r) = (1 / σ^2) * exp( -r^2 / (2σ^2) )
+K(x,y) = 1 / (2π σ^2) * exp( -(x^2+y^2) / (2σ^2) )
+K(r) = 1 / (2π σ^2) * exp( -r^2 / (2σ^2) )
 ```
 
 so that
 
 ```
-∫(0..∞) 2π r * K(r) dr = 1.
+∫∫(-∞..∞)(-∞..∞) K(x,y) dr = 1.
 ```
 
 Discretize up to some `max_r` (the cutoff):
@@ -310,24 +311,25 @@ cutoffs = [max_r]
 For a 3D standard normal with std dev σ, you want
 
 ```
-∫(0..∞) 4π r^2 K(r) dr = 1.
+∫∫∫(-∞..∞)(-∞..∞)(-∞..∞) K(x,y,z) dr = 1.
 ```
 
 A possible radial factor is:
 
 ```
-K(r) = (constant) * exp( - r^2 / (2σ^2) ) * (r^2 / σ^2)
+K(x,y,z) = (constant) * exp( -(x^2+y^2+z^2) / (2σ^2) )
+K(r) = (constant) * exp( - r^2 / (2σ^2) )
 ```
 
-where the constant is chosen so the integral is 1. For instance:
+where the constant is chosen so the integral over x,y,z is 1. For instance:
 
 ```python
 import numpy as np
 
 def normal_3d_kernel(r, sigma=1.0):
     # Approximates the correct factor for 3D normalization
-    c = 4.0 * np.pi / ((2.0 * np.pi)**1.5 * sigma**3)
-    return c * np.exp(-0.5*(r**2)/(sigma**2)) * (r**2 / sigma**2)
+    c = 1 / (2 * np.pi)**(3/2)
+    return c * np.exp(-0.5*(r**2)/(sigma**2)) 
 
 max_r = 5.0
 N = 501
