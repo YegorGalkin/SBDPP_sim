@@ -197,7 +197,7 @@ coords_s0_cell5 = g2.get_cell_coords(5, 0)
 print(f"Coordinates of species 0 in cell 5: {coords_s0_cell5}")
 ```
 
-### 3.5 Retrieving All Particle Coordinates
+### 3.5 Retrieving All Particle Coordinates and Death Rates
 
 A convenient method **`get_all_particle_coords()`** returns all particle positions in one call, grouped by species:
 
@@ -205,23 +205,34 @@ A convenient method **`get_all_particle_coords()`** returns all particle positio
 - **`PyGrid2`** returns `[ [[x1,y1],[x2,y2],...], [[x1,y1],[x2,y2],...], ... ]`.
 - **`PyGrid3`** returns `[ [[x1,y1,z1],[x2,y2,z2],...], [...], ... ]`.
 
+Similarly, **`get_all_particle_death_rates()`** returns the death rates for all particles, grouped by species:
+
+- Each grid class returns `[ [rate1, rate2, ...], [rate1, rate2, ...], ... ]`.
+- The death rates are returned in the same order as the coordinates from `get_all_particle_coords()`, ensuring a one-to-one correspondence between positions and rates.
+
 Example:
 
 ```python
 all_coords = g2.get_all_particle_coords()
+all_rates = g2.get_all_particle_death_rates()
+
 for s_idx, coords_list in enumerate(all_coords):
     print(f"Species {s_idx} has {len(coords_list)} particles.")
     
-# Plot the positions of all particles (for 2D)
+# Plot the positions of all particles (for 2D) with color based on death rate
 import matplotlib.pyplot as plt
-for s_idx, coords_list in enumerate(all_coords):
+import numpy as np
+
+for s_idx, (coords_list, rates_list) in enumerate(zip(all_coords, all_rates)):
     x = [pos[0] for pos in coords_list]
     y = [pos[1] for pos in coords_list]
-    plt.scatter(x, y, label=f"Species {s_idx}")
+    plt.scatter(x, y, c=rates_list, cmap='viridis', label=f"Species {s_idx}")
+
+plt.colorbar(label="Death rate")
 plt.legend()
 plt.xlabel("x")
 plt.ylabel("y")
-plt.title("Particle positions")
+plt.title("Particle positions colored by death rate")
 plt.show()
 ```
 
