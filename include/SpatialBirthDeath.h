@@ -405,6 +405,17 @@ public:
      * @return A vector of vectors containing coordinates for each particle of each species
      */
     std::vector<std::vector<std::array<double, DIM> > > get_all_particle_coords() const;
+
+    /**
+     * @brief Returns death rates for all particles for each species.
+     *
+     * For each species s (0 <= s < M), returns a vector of particle death rates.
+     * The return type is a vector (per species) of doubles.
+     * The order matches the order of coordinates returned by get_all_particle_coords().
+     * 
+     * @return A vector of vectors containing death rates for each particle of each species
+     */
+    std::vector<std::vector<double> > get_all_particle_death_rates() const;
 };
 
 // Explicit template instantiations

@@ -306,6 +306,7 @@ cdef extern from "SpatialBirthDeath.h":
         void run_events(int events) except +
         void run_for(double time) except +
         vector[vector[arrayDouble1]] get_all_particle_coords() except +
+        vector[vector[double]] get_all_particle_death_rates() except +
 
         # Exposed fields:
         double total_birth_rate
@@ -343,6 +344,7 @@ cdef extern from "SpatialBirthDeath.h":
         void run_events(int events) except +
         void run_for(double time) except +
         vector[vector[arrayDouble2]] get_all_particle_coords() except +
+        vector[vector[double]] get_all_particle_death_rates() except +
 
         double total_birth_rate
         double total_death_rate
@@ -379,6 +381,7 @@ cdef extern from "SpatialBirthDeath.h":
         void run_events(int events) except +
         void run_for(double time) except +
         vector[vector[arrayDouble3]] get_all_particle_coords() except +
+        vector[vector[double]] get_all_particle_death_rates() except +
 
         double total_birth_rate
         double total_death_rate
@@ -686,6 +689,26 @@ cdef class PyGrid1:
                 species_coords.append(c_all[i][j][0])
             py_out.append(species_coords)
         return py_out
+        
+    def get_all_particle_death_rates(self):
+        """
+        Returns aggregated death rates for all particles in the grid,
+        grouped by species.
+
+        Returns:
+            A list of lists: one list per species, where each inner list
+            contains the death rate for every particle of that species.
+        """
+        cdef vector[vector[double]] c_all = self.cpp_grid.get_all_particle_death_rates()
+        cdef int ns = c_all.size()
+        py_out = []
+        cdef int i, j
+        for i in range(ns):
+            species_rates = []
+            for j in range(c_all[i].size()):
+                species_rates.append(c_all[i][j])
+            py_out.append(species_rates)
+        return py_out
 
 
 #==================== PyGrid2 (wrapper for Grid<2>) ====================#
@@ -889,6 +912,26 @@ cdef class PyGrid2:
             for j in range(c_all[i].size()):
                 species_coords.append([c_all[i][j][0], c_all[i][j][1]])
             py_out.append(species_coords)
+        return py_out
+        
+    def get_all_particle_death_rates(self):
+        """
+        Returns aggregated death rates for all particles in the grid,
+        grouped by species.
+
+        Returns:
+            A list of lists: one list per species, where each inner list
+            contains the death rate for every particle of that species.
+        """
+        cdef vector[vector[double]] c_all = self.cpp_grid.get_all_particle_death_rates()
+        cdef int ns = c_all.size()
+        py_out = []
+        cdef int i, j
+        for i in range(ns):
+            species_rates = []
+            for j in range(c_all[i].size()):
+                species_rates.append(c_all[i][j])
+            py_out.append(species_rates)
         return py_out
 
 #==================== PyGrid3 (wrapper for Grid<3>) ====================#
@@ -1096,4 +1139,24 @@ cdef class PyGrid3:
                                        c_all[i][j][1],
                                        c_all[i][j][2]])
             py_out.append(species_coords)
+        return py_out
+        
+    def get_all_particle_death_rates(self):
+        """
+        Returns aggregated death rates for all particles in the grid,
+        grouped by species.
+
+        Returns:
+            A list of lists: one list per species, where each inner list
+            contains the death rate for every particle of that species.
+        """
+        cdef vector[vector[double]] c_all = self.cpp_grid.get_all_particle_death_rates()
+        cdef int ns = c_all.size()
+        py_out = []
+        cdef int i, j
+        for i in range(ns):
+            species_rates = []
+            for j in range(c_all[i].size()):
+                species_rates.append(c_all[i][j])
+            py_out.append(species_rates)
         return py_out

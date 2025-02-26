@@ -1,7 +1,6 @@
 /**
  * @file SpatialBirthDeath.cpp
- * @brief Implementation of a spatial birth-death point process simulator,
- *        using spawn_at / kill_at instead of placeInitialPopulations / computeInitialDeathRates.
+ * @brief Implementation of a spatial birth-death point process simulator.
  *
  * This file contains the implementation of the Grid class template and related functions
  * for simulating spatial birth-death processes in 1, 2, or 3 dimensions.
@@ -15,7 +14,7 @@
 #include <vector>
 #include <array>
 #include <chrono>
-#include <algorithm>  // for std::max, std::min
+#include <algorithm>
 #include "../include/SpatialBirthDeath.h"
 
 double linearInterpolate(const std::vector<double> &xgdat, const std::vector<double> &gdat,
@@ -28,7 +27,6 @@ double linearInterpolate(const std::vector<double> &xgdat, const std::vector<dou
     // Linear interpolation formula
     double x1 = xgdat[l], x2 = xgdat[k];
     double y1 = gdat[l], y2 = gdat[k];
-
     return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
 }
 
@@ -223,7 +221,7 @@ Grid<DIM>::Grid(int M_, const std::array<double, DIM> &areaLen,
             for (int dim = 0; dim < DIM; dim++) {
                 double cellSize = area_length[dim] / cell_count[dim];
                 int needed = (int)std::ceil(cutoff[s1][s2] / cellSize);
-                // at least 1 cell
+                // at least 3 cells
                 cull[s1][s2][dim] = std::max(needed, 3);
             }
         }
@@ -753,9 +751,17 @@ std::vector<std::vector<std::array<double, DIM> > > Grid<DIM>::get_all_particle_
     return result;
 }
 
-//============================================================
-//  Explicit template instantiations
-//============================================================
+template <int DIM>
+std::vector<std::vector<double> > Grid<DIM>::get_all_particle_death_rates() const {
+    std::vector<std::vector<double> > result(M);
+    for (const auto &cell : cells) {
+        for (int s = 0; s < M; ++s) {
+            result[s].insert(result[s].end(), cell.deathRates[s].begin(), cell.deathRates[s].end());
+        }
+    }
+    return result;
+}
+
 template class Grid<1>;
 template class Grid<2>;
 template class Grid<3>;
