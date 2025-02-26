@@ -310,9 +310,9 @@ For each pair `(s1, s2)`, you must pass `(deathX[s1][s2], deathY[s1][s2])`, plus
 **Important**: The model assumes these kernels are **normalized** when integrated with respect to the dimension's volume element:
 
 ```
-1D:  ∫(0..∞) K(r) dr = 1
-2D:  ∫(0..∞) 2π r K(r) dr = 1
-3D:  ∫(0..∞) 4π r^2 K(r) dr = 1
+1D:  ∫∫∫(-∞..∞) K(x) dx = 1
+2D:  ∫∫(-∞..∞)(-∞..∞) K(x,y) dx dy = 1
+3D:  ∫∫∫(-∞..∞)(-∞..∞)(-∞..∞) K(x,y,z) dx dy dz = 1
 ```
 
 Such normalization ensures that if `dd[s1][s2] = 1`, the total "average" effect is 1 over the domain (or up to the cutoff).
