@@ -38,18 +38,22 @@ double linearInterpolate(const std::vector<double> &xgdat, const std::vector<dou
                          double x);
 
 /**
- * @brief Iterates over all neighbor cell indices within the specified cull range.
+ * @brief Iterates over all neighbor cell indices within the specified range around a center cell.
  *
- * @tparam DIM  The dimension of the domain (1, 2, or 3).
- * @tparam FUNC A callable like `[](const std::array<int,DIM> &nIdx){ ... }`.
+ * This function systematically visits all cells within a hypercubic region centered at the given
+ * cell index. For each neighbor cell, it calls the provided callback function with the neighbor's
+ * index. The range parameter determines how far to search in each dimension.
  *
- * @param center The center cell index.
- * @param range The maximum offset in each dimension to search.
- * @param func The callback to invoke for each neighbor cell index.
+ * @tparam DIM The dimension of the domain (1, 2, or 3).
+ * @tparam FUNC A callable type that accepts a cell index array, e.g., `[](const std::array<int,DIM> &nIdx){ ... }`.
+ *
+ * @param centerIdx The center cell index around which to search.
+ * @param range The maximum offset in each dimension to search (search extends from centerIdx-range to centerIdx+range).
+ * @param callback The function to invoke for each neighbor cell index.
  */
 template <int DIM, typename FUNC>
-void forNeighbors(const std::array<int, DIM> &center, const std::array<int, DIM> &range,
-                  const FUNC &func);
+void forNeighbors(const std::array<int, DIM> &centerIdx, const std::array<int, DIM> &range,
+                  FUNC &&callback);
 
 /**
  * @brief Compute Euclidean distance between two points a,b in DIM dimensions,

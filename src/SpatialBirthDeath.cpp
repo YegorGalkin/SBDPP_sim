@@ -61,46 +61,67 @@ double distancePeriodic(const std::array<double, DIM> &a, const std::array<doubl
 }
 
 /**
- * @brief Iterates over neighbor cells in a hypercubic domain within a specified range.
- * 
- * This function calls the provided callback for each neighbor cell index within the
- * specified range around the center cell.
- * 
- * @tparam DIM The dimension of the domain (1, 2, or 3)
- * @tparam F The type of the callback function
- * @param centerIdx The center cell index
- * @param range The range to search in each dimension
- * @param callback Function to call for each neighbor index
+ * @brief Iterates over all neighbor cell indices within the specified range around a center cell.
+ *
+ * This function systematically visits all cells within a hypercubic region centered at the given
+ * cell index. For each neighbor cell, it calls the provided callback function with the neighbor's
+ * index. The range parameter determines how far to search in each dimension.
+ *
+ * Implementation note: This uses dimension-specific code paths for 1D, 2D, and 3D cases
+ * for efficiency, rather than a fully generic approach that would work for any dimension.
+ *
+ * @tparam DIM The dimension of the domain (1, 2, or 3).
+ * @tparam FUNC A callable type that accepts a cell index array.
+ * @param centerIdx The center cell index around which to search.
+ * @param range The maximum offset in each dimension to search (search extends from centerIdx-range to centerIdx+range).
+ * @param callback The function to invoke for each neighbor cell index.
  */
-template <int DIM, typename F>
+template <int DIM, typename FUNC>
 void forNeighbors(const std::array<int, DIM> &centerIdx, const std::array<int, DIM> &range,
-                  F &&callback) {
-    // We do a recursive or iterative approach:
-    std::array<int, DIM> idx;
-    // We'll do a simple "nested for" approach by building the loops recursively:
-    // In real code you'd do something dimension-agnostic.
-    // Here's a dimension-based unrolling for up to 3D. (Pseudocode for general DIM.)
+                  FUNC &&callback) {
+    // Initialize the neighbor index array
+    std::array<int, DIM> neighborIdx;
+    
+    // Dimension-specific implementations for efficiency
     if constexpr (DIM == 1) {
-        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
-            idx[0] = i;
-            callback(idx);
+        // 1D case: iterate over x-dimension
+        const int minX = centerIdx[0] - range[0];
+        const int maxX = centerIdx[0] + range[0];
+        
+        for (int x = minX; x <= maxX; x++) {
+            neighborIdx[0] = x;
+            callback(neighborIdx);
         }
     } else if constexpr (DIM == 2) {
-        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
-            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; j++) {
-                idx[0] = i;
-                idx[1] = j;
-                callback(idx);
+        // 2D case: iterate over x and y dimensions
+        const int minX = centerIdx[0] - range[0];
+        const int maxX = centerIdx[0] + range[0];
+        const int minY = centerIdx[1] - range[1];
+        const int maxY = centerIdx[1] + range[1];
+        
+        for (int x = minX; x <= maxX; x++) {
+            neighborIdx[0] = x;
+            for (int y = minY; y <= maxY; y++) {
+                neighborIdx[1] = y;
+                callback(neighborIdx);
             }
         }
     } else if constexpr (DIM == 3) {
-        for (int i = centerIdx[0] - range[0]; i <= centerIdx[0] + range[0]; i++) {
-            for (int j = centerIdx[1] - range[1]; j <= centerIdx[1] + range[1]; j++) {
-                for (int k = centerIdx[2] - range[2]; k <= centerIdx[2] + range[2]; k++) {
-                    idx[0] = i;
-                    idx[1] = j;
-                    idx[2] = k;
-                    callback(idx);
+        // 3D case: iterate over x, y, and z dimensions
+        const int minX = centerIdx[0] - range[0];
+        const int maxX = centerIdx[0] + range[0];
+        const int minY = centerIdx[1] - range[1];
+        const int maxY = centerIdx[1] + range[1];
+        const int minZ = centerIdx[2] - range[2];
+        const int maxZ = centerIdx[2] + range[2];
+        
+        for (int x = minX; x <= maxX; x++) {
+            neighborIdx[0] = x;
+            for (int y = minY; y <= maxY; y++) {
+                neighborIdx[1] = y;
+                for (int z = minZ; z <= maxZ; z++) {
+                    neighborIdx[2] = z;
+                    callback(neighborIdx);
                 }
             }
         }
