@@ -1,13 +1,21 @@
 #cython: language_level=3
+"""
+SpatialBirthDeathWrapper.pyx - Cython wrapper for the C++ spatial birth-death simulator.
 
-# We may import some standard Cython / Python definitions
+This module provides Python classes (PyGrid1, PyGrid2, PyGrid3) that wrap the C++ Grid<DIM>
+template class, allowing Python users to create and manipulate spatial birth-death
+simulations in 1, 2, or 3 dimensions.
+"""
+
+# Import standard Cython / Python definitions
 from libcpp.vector cimport vector
 from libcpp cimport bool
 from libc.stdlib cimport malloc, free
 
 #######################################################
-# 1) Declare std::array<T,N> for needed combos
+# 1) Declare std::array<T,N> for needed combinations
 #######################################################
+# These declarations allow Cython to work with C++ std::array types
 cdef extern from "<array>" namespace "std" nogil:
 
     # -- double, dimension=1 --
@@ -41,21 +49,25 @@ cdef extern from "<array>" namespace "std" nogil:
         int& operator[](size_t) except +
 
 #######################################################
-# 2) Provide helper functions to convert Python -> std::array
+# 2) Provide helper functions to convert Python lists to std::array
 #######################################################
+# These functions convert Python lists to C++ std::array objects
 
 cdef arrayDouble1 pyToStdArrayDouble1(list arr) except *:
+    """Convert a Python list with 1 float to std::array<double, 1>"""
     cdef arrayDouble1 result = arrayDouble1()
     result[0] = <double>arr[0]
     return result
 
 cdef arrayDouble2 pyToStdArrayDouble2(list arr) except *:
+    """Convert a Python list with 2 floats to std::array<double, 2>"""
     cdef arrayDouble2 result = arrayDouble2()
     result[0] = <double>arr[0]
     result[1] = <double>arr[1]
     return result
 
 cdef arrayDouble3 pyToStdArrayDouble3(list arr) except *:
+    """Convert a Python list with 3 floats to std::array<double, 3>"""
     cdef arrayDouble3 result = arrayDouble3()
     result[0] = <double>arr[0]
     result[1] = <double>arr[1]
@@ -63,17 +75,20 @@ cdef arrayDouble3 pyToStdArrayDouble3(list arr) except *:
     return result
 
 cdef arrayInt1 pyToStdArrayInt1(list arr) except *:
+    """Convert a Python list with 1 integer to std::array<int, 1>"""
     cdef arrayInt1 result = arrayInt1()
     result[0] = <int>arr[0]
     return result
 
 cdef arrayInt2 pyToStdArrayInt2(list arr) except *:
+    """Convert a Python list with 2 integers to std::array<int, 2>"""
     cdef arrayInt2 result = arrayInt2()
     result[0] = <int>arr[0]
     result[1] = <int>arr[1]
     return result
 
 cdef arrayInt3 pyToStdArrayInt3(list arr) except *:
+    """Convert a Python list with 3 integers to std::array<int, 3>"""
     cdef arrayInt3 result = arrayInt3()
     result[0] = <int>arr[0]
     result[1] = <int>arr[1]
@@ -81,10 +96,12 @@ cdef arrayInt3 pyToStdArrayInt3(list arr) except *:
     return result
 
 #######################################################
-# 3) Convert Python lists to std::vector<double> etc.
+# 3) Convert Python lists to std::vector<double> and nested vectors
 #######################################################
+# These functions convert Python lists to C++ std::vector objects
 
 cdef vector[double] pyListToVectorDouble(object pyList) except *:
+    """Convert a Python list of floats to std::vector<double>"""
     cdef int n = len(pyList)
     cdef vector[double] vec
     vec.resize(n)
@@ -96,6 +113,7 @@ cdef vector[double] pyListToVectorDouble(object pyList) except *:
     return vec
 
 cdef vector[ vector[double] ] pyListOfListToVectorVectorDouble(object pyList) except *:
+    """Convert a Python list of lists of floats to std::vector<std::vector<double>>"""
     cdef int outer_size = len(pyList)
     cdef vector[ vector[double] ] result
     result.resize(outer_size)
@@ -114,6 +132,7 @@ cdef vector[ vector[double] ] pyListOfListToVectorVectorDouble(object pyList) ex
     return result
 
 cdef vector[ vector[ vector[double] ] ] pyListOfListOfListToVector3Double(object pyList) except *:
+    """Convert a Python list of lists of lists of floats to std::vector<std::vector<std::vector<double>>>"""
     cdef int s1_count = len(pyList)
     cdef vector[ vector[ vector[double] ] ] out3
     out3.resize(s1_count)
@@ -131,15 +150,22 @@ cdef vector[ vector[ vector[double] ] ] pyListOfListOfListToVector3Double(object
     return out3
 
 #######################################################
-# 4) Convert Python -> data for placePopulation(...)
-#    dimension-specific
+# 4) Convert Python coordinate lists for placePopulation(...)
+#    (dimension-specific implementations)
 #######################################################
-# We'll keep these for convenience if the user wants to place multiple coords.
+# These functions convert Python coordinate lists to C++ vector of vectors of arrays
+# for use with the placePopulation method
 
 cdef vector[ vector[ arrayDouble1 ] ] pyToCoordsD1(object pyCoords) except *:
     """
-    pyCoords[s] = list of positions in 1D, e.g. [[x1], [x2], ...].
-    We'll build vector[ vector[arrayDouble1] ].
+    Convert Python coordinate lists to C++ format for 1D simulations.
+    
+    Parameters:
+        pyCoords: List of lists where pyCoords[s] is a list of positions for species s.
+                  Each position is a list [x].
+    
+    Returns:
+        A vector of vectors of arrayDouble1 for use with Grid<1>::placePopulation
     """
     cdef int nSpecies = len(pyCoords)
     cdef vector[ vector[ arrayDouble1 ] ] result
@@ -159,7 +185,14 @@ cdef vector[ vector[ arrayDouble1 ] ] pyToCoordsD1(object pyCoords) except *:
 
 cdef vector[ vector[ arrayDouble2 ] ] pyToCoordsD2(object pyCoords) except *:
     """
-    pyCoords[s] = list of [ [x,y], [x2,y2], ... ] for species s.
+    Convert Python coordinate lists to C++ format for 2D simulations.
+    
+    Parameters:
+        pyCoords: List of lists where pyCoords[s] is a list of positions for species s.
+                  Each position is a list [x, y].
+    
+    Returns:
+        A vector of vectors of arrayDouble2 for use with Grid<2>::placePopulation
     """
     cdef int nSpecies = len(pyCoords)
     cdef vector[ vector[ arrayDouble2 ] ] result
@@ -179,7 +212,14 @@ cdef vector[ vector[ arrayDouble2 ] ] pyToCoordsD2(object pyCoords) except *:
 
 cdef vector[ vector[ arrayDouble3 ] ] pyToCoordsD3(object pyCoords) except *:
     """
-    pyCoords[s] = list of [ [x,y,z], [..], ... ] for species s.
+    Convert Python coordinate lists to C++ format for 3D simulations.
+    
+    Parameters:
+        pyCoords: List of lists where pyCoords[s] is a list of positions for species s.
+                  Each position is a list [x, y, z].
+    
+    Returns:
+        A vector of vectors of arrayDouble3 for use with Grid<3>::placePopulation
     """
     cdef int nSpecies = len(pyCoords)
     cdef vector[ vector[ arrayDouble3 ] ] result
@@ -198,8 +238,9 @@ cdef vector[ vector[ arrayDouble3 ] ] pyToCoordsD3(object pyCoords) except *:
     return result
 
 #######################################################
-# 5) Expose Cell<DIM> (for reading only)
+# 5) Expose Cell<DIM> classes (for reading only)
 #######################################################
+# These declarations allow Cython to access the C++ Cell template classes
 cdef extern from "SpatialBirthDeath.h":
     cdef cppclass Cell1 "Cell<1>":
         vector[ vector[arrayDouble1] ] coords
@@ -231,8 +272,9 @@ cdef extern from "SpatialBirthDeath.h":
         double                        cellDeathRate
 
 #######################################################
-# 6) Expose Grid<DIM> classes with new methods
+# 6) Expose Grid<DIM> classes with their methods
 #######################################################
+# These declarations allow Cython to access the C++ Grid template classes
 cdef extern from "SpatialBirthDeath.h":
 
     cdef cppclass Grid1 "Grid<1>":
@@ -347,28 +389,48 @@ cdef extern from "SpatialBirthDeath.h":
         vector[Cell3] cells
 
 #######################################################
-# 7) Python wrapper classes
+# 7) Python wrapper classes for the C++ Grid classes
 #######################################################
+# These classes expose the C++ functionality to Python
 
-#==================== Grid<1> ====================#
+#==================== PyGrid1 (wrapper for Grid<1>) ====================#
 cdef class PyGrid1:
     cdef Grid1* cpp_grid  # Owned pointer
 
     def __cinit__(self,
-                  M,
-                  areaLen,    # e.g. [25.0]
-                  cellCount,  # e.g. [25]
-                  isPeriodic,
-                  birthRates,
-                  deathRates,
-                  ddMatrix,
-                  birthX,
-                  birthY,
-                  deathX_,
-                  deathY_,
-                  cutoffs,
-                  seed,
-                  rtimeLimit):
+                  M,                # Number of species
+                  areaLen,          # Domain size, e.g. [25.0]
+                  cellCount,        # Number of cells, e.g. [25]
+                  isPeriodic,       # Whether to use periodic boundaries
+                  birthRates,       # Baseline birth rates for each species
+                  deathRates,       # Baseline death rates for each species
+                  ddMatrix,         # Flattened MxM pairwise interaction magnitudes
+                  birthX,           # Birth kernel x-values (quantiles)
+                  birthY,           # Birth kernel y-values (radii)
+                  deathX_,          # Death kernel x-values (distances)
+                  deathY_,          # Death kernel y-values (kernel values)
+                  cutoffs,          # Flattened MxM cutoff distances
+                  seed,             # Random number generator seed
+                  rtimeLimit):      # Real-time limit in seconds
+        """
+        Initialize a 1D spatial birth-death simulator.
+        
+        Parameters:
+            M: Number of species
+            areaLen: Domain size as a list [length]
+            cellCount: Number of cells as a list [num_cells]
+            isPeriodic: Whether to use periodic boundary conditions
+            birthRates: List of baseline birth rates for each species
+            deathRates: List of baseline death rates for each species
+            ddMatrix: Flattened MxM matrix of pairwise interaction magnitudes
+            birthX: List of lists, where birthX[s] contains quantiles for species s
+            birthY: List of lists, where birthY[s] contains radii for species s
+            deathX_: 3D list of death kernel x-values (distances)
+            deathY_: 3D list of death kernel y-values (kernel values)
+            cutoffs: Flattened MxM list of cutoff distances
+            seed: Random number generator seed
+            rtimeLimit: Real-time limit in seconds for simulation runs
+        """
         cdef arrayDouble1 c_areaLen = pyToStdArrayDouble1(areaLen)
         cdef arrayInt1    c_cellCount = pyToStdArrayInt1(cellCount)
         cdef vector[double] c_birthRates = pyListToVectorDouble(birthRates)
@@ -402,49 +464,96 @@ cdef class PyGrid1:
             del self.cpp_grid
             self.cpp_grid = NULL
 
-    # ------ New function: placePopulation ------
+    # ------ Population placement ------
     def placePopulation(self, initCoords):
         """
-        initCoords[s] = list of [ [x1], [x2], ... ] for species s.
+        Place multiple particles at specified coordinates.
+        
+        Parameters:
+            initCoords: List of lists where initCoords[s] is a list of positions for species s.
+                        For 1D, each position is a list [x].
         """
         cdef vector[ vector[arrayDouble1] ] c_init = pyToCoordsD1(initCoords)
         self.cpp_grid.placePopulation(c_init)
 
-    # ------ spawn_at / kill_at ------
+    # ------ Direct spawn/kill methods ------
     def spawn_at(self, s, pos):
         """
-        s: int (species index)
-        pos: [x]
+        Place a new particle of species s at the specified position.
+        
+        Parameters:
+            s: Species index (integer)
+            pos: Position as a list [x]
         """
         cdef arrayDouble1 cpos = pyToStdArrayDouble1(pos)
         self.cpp_grid.spawn_at(s, cpos)
 
     def kill_at(self, s, cell_idx, victimIdx):
         """
-        s: int (species index)
-        cell_idx: [i]
-        pos: [x]
+        Remove a particle of species s in the specified cell at the given index.
+        
+        Parameters:
+            s: Species index (integer)
+            cell_idx: Cell index as a list [i]
+            victimIdx: Index of the particle within the cell's species array
         """
         cdef arrayInt1 cc = pyToStdArrayInt1(cell_idx)
         self.cpp_grid.kill_at(s, cc, victimIdx)
 
-    # ------ random events ------
+    # ------ Random event methods ------
     def spawn_random(self):
+        """
+        Perform a random birth event.
+        
+        Picks a random cell weighted by birth rates, then a random species,
+        then a random parent, and places a new particle at a distance
+        sampled from the birth kernel in a random direction.
+        """
         self.cpp_grid.spawn_random()
 
     def kill_random(self):
+        """
+        Perform a random death event.
+        
+        Picks a random cell weighted by death rates, then a random species,
+        then a random victim weighted by per-particle death rates, and removes it.
+        """
         self.cpp_grid.kill_random()
 
     def make_event(self):
+        """
+        Perform one birth or death event and advance simulation time.
+        
+        The event type (birth or death) is chosen based on the ratio of
+        total birth rate to total death rate. The waiting time is sampled
+        from an exponential distribution.
+        """
         self.cpp_grid.make_event()
 
     def run_events(self, n):
+        """
+        Run a fixed number of events.
+        
+        Parameters:
+            n: Number of events to perform
+            
+        The simulation will terminate early if the real-time limit is reached.
+        """
         self.cpp_grid.run_events(n)
 
     def run_for(self, duration):
+        """
+        Run the simulation for a specified amount of simulated time.
+        
+        Parameters:
+            duration: Amount of simulation time to advance
+            
+        The simulation will terminate early if the real-time limit is reached
+        or if the total rates become negligible.
+        """
         self.cpp_grid.run_for(duration)
 
-    # ------ read-only properties ------
+    # ------ Read-only properties ------
     @property
     def total_birth_rate(self):
         return self.cpp_grid.total_birth_rate
@@ -466,10 +575,26 @@ cdef class PyGrid1:
         return self.cpp_grid.event_count
 
     def get_num_cells(self):
+        """
+        Get the total number of cells in the grid.
+        
+        Returns:
+            Integer representing the total number of cells
+        """
         return self.cpp_grid.total_num_cells
 
-    # ------ Access cell data ------
+    # ------ Cell data access methods ------
     def get_cell_coords(self, cell_index, species_idx):
+        """
+        Get the coordinates of all particles of a species in a cell.
+        
+        Parameters:
+            cell_index: Index of the cell
+            species_idx: Index of the species
+            
+        Returns:
+            List of x-coordinates for all particles of the specified species in the cell
+        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[arrayDouble1] coords_vec = cptr.coords[species_idx]
         cdef int n = coords_vec.size()
@@ -479,6 +604,16 @@ cdef class PyGrid1:
         return out
 
     def get_cell_death_rates(self, cell_index, species_idx):
+        """
+        Get the death rates of all particles of a species in a cell.
+        
+        Parameters:
+            cell_index: Index of the cell
+            species_idx: Index of the species
+            
+        Returns:
+            List of death rates for all particles of the specified species in the cell
+        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[double] drates = cptr.deathRates[species_idx]
         cdef int n = drates.size()
@@ -488,6 +623,15 @@ cdef class PyGrid1:
         return out
 
     def get_cell_population(self, cell_index):
+        """
+        Get the population counts for each species in a cell.
+        
+        Parameters:
+            cell_index: Index of the cell
+            
+        Returns:
+            List of population counts, one for each species
+        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         cdef vector[int] pop = cptr.population
         cdef int m = pop.size()
@@ -497,10 +641,28 @@ cdef class PyGrid1:
         return out
 
     def get_cell_birth_rate(self, cell_index):
+        """
+        Get the total birth rate in a cell.
+        
+        Parameters:
+            cell_index: Index of the cell
+            
+        Returns:
+            Total birth rate summed over all species in the cell
+        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellBirthRate
 
     def get_cell_death_rate(self, cell_index):
+        """
+        Get the total death rate in a cell.
+        
+        Parameters:
+            cell_index: Index of the cell
+            
+        Returns:
+            Total death rate summed over all species in the cell
+        """
         cdef Cell1 * cptr = &self.cpp_grid.cells[cell_index]
         return cptr.cellDeathRate
 
@@ -526,25 +688,44 @@ cdef class PyGrid1:
         return py_out
 
 
-#==================== Grid<2> ====================#
+#==================== PyGrid2 (wrapper for Grid<2>) ====================#
 cdef class PyGrid2:
     cdef Grid2* cpp_grid
 
     def __cinit__(self,
-                  M,
-                  areaLen,    # [width, height]
-                  cellCount,  # [nx, ny]
-                  isPeriodic,
-                  birthRates,
-                  deathRates,
-                  ddMatrix,
-                  birthX,
-                  birthY,
-                  deathX_,
-                  deathY_,
-                  cutoffs,
-                  seed,
-                  rtimeLimit):
+                  M,                # Number of species
+                  areaLen,          # Domain size, e.g. [width, height]
+                  cellCount,        # Number of cells, e.g. [nx, ny]
+                  isPeriodic,       # Whether to use periodic boundaries
+                  birthRates,       # Baseline birth rates for each species
+                  deathRates,       # Baseline death rates for each species
+                  ddMatrix,         # Flattened MxM pairwise interaction magnitudes
+                  birthX,           # Birth kernel x-values (quantiles)
+                  birthY,           # Birth kernel y-values (radii)
+                  deathX_,          # Death kernel x-values (distances)
+                  deathY_,          # Death kernel y-values (kernel values)
+                  cutoffs,          # Flattened MxM cutoff distances
+                  seed,             # Random number generator seed
+                  rtimeLimit):      # Real-time limit in seconds
+        """
+        Initialize a 2D spatial birth-death simulator.
+        
+        Parameters:
+            M: Number of species
+            areaLen: Domain size as a list [width, height]
+            cellCount: Number of cells as a list [nx, ny]
+            isPeriodic: Whether to use periodic boundary conditions
+            birthRates: List of baseline birth rates for each species
+            deathRates: List of baseline death rates for each species
+            ddMatrix: Flattened MxM matrix of pairwise interaction magnitudes
+            birthX: List of lists, where birthX[s] contains quantiles for species s
+            birthY: List of lists, where birthY[s] contains radii for species s
+            deathX_: 3D list of death kernel x-values (distances)
+            deathY_: 3D list of death kernel y-values (kernel values)
+            cutoffs: Flattened MxM list of cutoff distances
+            seed: Random number generator seed
+            rtimeLimit: Real-time limit in seconds for simulation runs
+        """
         cdef arrayDouble2 c_areaLen = pyToStdArrayDouble2(areaLen)
         cdef arrayInt2    c_cellCount = pyToStdArrayInt2(cellCount)
         cdef vector[double] c_birthRates = pyListToVectorDouble(birthRates)
@@ -578,28 +759,38 @@ cdef class PyGrid2:
             del self.cpp_grid
             self.cpp_grid = NULL
 
-    # ------ placePopulation ------
+    # ------ Population placement ------
     def placePopulation(self, initCoords):
         """
-        initCoords[s] = list of [ [x,y], [..], ... ] for species s
+        Place multiple particles at specified coordinates.
+        
+        Parameters:
+            initCoords: List of lists where initCoords[s] is a list of positions for species s.
+                        For 2D, each position is a list [x, y].
         """
         cdef vector[ vector[arrayDouble2] ] c_init = pyToCoordsD2(initCoords)
         self.cpp_grid.placePopulation(c_init)
 
-    # ------ spawn_at / kill_at ------
+    # ------ Direct spawn/kill methods ------
     def spawn_at(self, s, pos):
         """
-        s: int
-        pos: [x, y]
+        Place a new particle of species s at the specified position.
+        
+        Parameters:
+            s: Species index (integer)
+            pos: Position as a list [x, y]
         """
         cdef arrayDouble2 cpos = pyToStdArrayDouble2(pos)
         self.cpp_grid.spawn_at(s, cpos)
 
     def kill_at(self, s, cell_idx, victimIdx):
         """
-        s: int
-        cell_idx: [ix, iy]
-        pos: [x, y]
+        Remove a particle of species s in the specified cell at the given index.
+        
+        Parameters:
+            s: Species index (integer)
+            cell_idx: Cell index as a list [ix, iy]
+            victimIdx: Index of the particle within the cell's species array
         """
         cdef arrayInt2 cc = pyToStdArrayInt2(cell_idx)
         self.cpp_grid.kill_at(s, cc, victimIdx)
@@ -700,25 +891,44 @@ cdef class PyGrid2:
             py_out.append(species_coords)
         return py_out
 
-#==================== Grid<3> ====================#
+#==================== PyGrid3 (wrapper for Grid<3>) ====================#
 cdef class PyGrid3:
     cdef Grid3* cpp_grid
 
     def __cinit__(self,
-                  M,
-                  areaLen,     # [x_size, y_size, z_size]
-                  cellCount,   # [nx, ny, nz]
-                  isPeriodic,
-                  birthRates,
-                  deathRates,
-                  ddMatrix,
-                  birthX,
-                  birthY,
-                  deathX_,
-                  deathY_,
-                  cutoffs,
-                  seed,
-                  rtimeLimit):
+                  M,                # Number of species
+                  areaLen,          # Domain size, e.g. [x_size, y_size, z_size]
+                  cellCount,        # Number of cells, e.g. [nx, ny, nz]
+                  isPeriodic,       # Whether to use periodic boundaries
+                  birthRates,       # Baseline birth rates for each species
+                  deathRates,       # Baseline death rates for each species
+                  ddMatrix,         # Flattened MxM pairwise interaction magnitudes
+                  birthX,           # Birth kernel x-values (quantiles)
+                  birthY,           # Birth kernel y-values (radii)
+                  deathX_,          # Death kernel x-values (distances)
+                  deathY_,          # Death kernel y-values (kernel values)
+                  cutoffs,          # Flattened MxM cutoff distances
+                  seed,             # Random number generator seed
+                  rtimeLimit):      # Real-time limit in seconds
+        """
+        Initialize a 3D spatial birth-death simulator.
+        
+        Parameters:
+            M: Number of species
+            areaLen: Domain size as a list [x_size, y_size, z_size]
+            cellCount: Number of cells as a list [nx, ny, nz]
+            isPeriodic: Whether to use periodic boundary conditions
+            birthRates: List of baseline birth rates for each species
+            deathRates: List of baseline death rates for each species
+            ddMatrix: Flattened MxM matrix of pairwise interaction magnitudes
+            birthX: List of lists, where birthX[s] contains quantiles for species s
+            birthY: List of lists, where birthY[s] contains radii for species s
+            deathX_: 3D list of death kernel x-values (distances)
+            deathY_: 3D list of death kernel y-values (kernel values)
+            cutoffs: Flattened MxM list of cutoff distances
+            seed: Random number generator seed
+            rtimeLimit: Real-time limit in seconds for simulation runs
+        """
         cdef arrayDouble3 c_areaLen = pyToStdArrayDouble3(areaLen)
         cdef arrayInt3    c_cellCount = pyToStdArrayInt3(cellCount)
         cdef vector[double] c_birthRates = pyListToVectorDouble(birthRates)
@@ -752,28 +962,38 @@ cdef class PyGrid3:
             del self.cpp_grid
             self.cpp_grid = NULL
 
-    # ------ placePopulation ------
+    # ------ Population placement ------
     def placePopulation(self, initCoords):
         """
-        initCoords[s] = list of [ [x,y,z], [..], ... ] for species s.
+        Place multiple particles at specified coordinates.
+        
+        Parameters:
+            initCoords: List of lists where initCoords[s] is a list of positions for species s.
+                        For 3D, each position is a list [x, y, z].
         """
         cdef vector[ vector[arrayDouble3] ] c_init = pyToCoordsD3(initCoords)
         self.cpp_grid.placePopulation(c_init)
 
-    # ------ spawn_at / kill_at ------
+    # ------ Direct spawn/kill methods ------
     def spawn_at(self, s, pos):
         """
-        s: int
-        pos: [x, y, z]
+        Place a new particle of species s at the specified position.
+        
+        Parameters:
+            s: Species index (integer)
+            pos: Position as a list [x, y, z]
         """
         cdef arrayDouble3 cpos = pyToStdArrayDouble3(pos)
         self.cpp_grid.spawn_at(s, cpos)
 
     def kill_at(self, s, cell_idx, victimIdx):
         """
-        s: int
-        cell_idx: [ix, iy, iz]
-        pos: [x, y, z]
+        Remove a particle of species s in the specified cell at the given index.
+        
+        Parameters:
+            s: Species index (integer)
+            cell_idx: Cell index as a list [ix, iy, iz]
+            victimIdx: Index of the particle within the cell's species array
         """
         cdef arrayInt3 cc = pyToStdArrayInt3(cell_idx)
         self.cpp_grid.kill_at(s, cc, victimIdx)

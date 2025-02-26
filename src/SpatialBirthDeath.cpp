@@ -1,9 +1,12 @@
 /**
- * \file SpatialBirthDeath.cpp
- * \brief Example refactored source for a spatial birth-death point process,
+ * @file SpatialBirthDeath.cpp
+ * @brief Implementation of a spatial birth-death point process simulator,
  *        using spawn_at / kill_at instead of placeInitialPopulations / computeInitialDeathRates.
  *
- * \date 2025-01-20
+ * This file contains the implementation of the Grid class template and related functions
+ * for simulating spatial birth-death processes in 1, 2, or 3 dimensions.
+ *
+ * @date 2025-01-20
  */
 
 #include <iostream>
@@ -30,7 +33,14 @@ double linearInterpolate(const std::vector<double> &xgdat, const std::vector<dou
 }
 
 /**
- * Euclidean distance for DIM dimensions, with optional periodic wrapping.
+ * @brief Calculates the Euclidean distance between two points in DIM dimensions, with optional periodic wrapping.
+ * 
+ * @tparam DIM The dimension of the space (1, 2, or 3)
+ * @param a First point coordinates
+ * @param b Second point coordinates
+ * @param L Domain lengths in each dimension
+ * @param periodic Whether to use periodic boundary conditions
+ * @return The Euclidean distance between points a and b
  */
 template <int DIM>
 double distancePeriodic(const std::array<double, DIM> &a, const std::array<double, DIM> &b,
@@ -51,9 +61,16 @@ double distancePeriodic(const std::array<double, DIM> &a, const std::array<doubl
 }
 
 /**
- * A small function to iterate over neighbor cells in a hypercubic domain,
- * given a cull-range for each dimension.
- * It calls `callback(neighborIndex)` for each neighbor index in the domain.
+ * @brief Iterates over neighbor cells in a hypercubic domain within a specified range.
+ * 
+ * This function calls the provided callback for each neighbor cell index within the
+ * specified range around the center cell.
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
+ * @tparam F The type of the callback function
+ * @param centerIdx The center cell index
+ * @param range The range to search in each dimension
+ * @param callback Function to call for each neighbor index
  */
 template <int DIM, typename F>
 void forNeighbors(const std::array<int, DIM> &centerIdx, const std::array<int, DIM> &range,
@@ -95,7 +112,26 @@ void forNeighbors(const std::array<int, DIM> &centerIdx, const std::array<int, D
 //============================================================
 
 /**
- * \brief Constructor implementation for the simulation grid.
+ * @brief Constructor implementation for the simulation grid.
+ * 
+ * Initializes the grid with the specified parameters, setting up the domain,
+ * species parameters, and interaction kernels.
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
+ * @param M_ Number of species
+ * @param areaLen Domain sizes in each dimension
+ * @param cellCount_ Number of cells in each dimension
+ * @param isPeriodic Whether to use periodic boundary conditions
+ * @param birthRates Baseline birth rates for each species
+ * @param deathRates Baseline death rates for each species
+ * @param ddMatrix Flattened MxM pairwise interaction magnitudes
+ * @param birthX Birth kernel x-values for each species
+ * @param birthY Birth kernel y-values for each species
+ * @param deathX_ Death kernel x-values for each species pair
+ * @param deathY_ Death kernel y-values for each species pair
+ * @param cutoffs Flattened MxM cutoff distances for interactions
+ * @param seed Random number generator seed
+ * @param rtimeLimit Real-time limit in seconds for simulation runs
  */
 template <int DIM>
 Grid<DIM>::Grid(int M_, const std::array<double, DIM> &areaLen,
@@ -256,7 +292,14 @@ double Grid<DIM>::evalDeathKernel(int s1, int s2, double dist) const {
 }
 
 /**
- * Helper: returns a random unit vector in DIM dimensions.
+ * @brief Generates a random unit vector in DIM dimensions.
+ * 
+ * In 1D, returns either +1 or -1 with equal probability.
+ * In higher dimensions, generates a random direction using a normal distribution.
+ * 
+ * @tparam DIM The dimension of the space (1, 2, or 3)
+ * @param rng Random number generator
+ * @return A random unit vector
  */
 template <int DIM>
 std::array<double, DIM> Grid<DIM>::randomUnitVector(std::mt19937 &rng) {
@@ -286,9 +329,14 @@ std::array<double, DIM> Grid<DIM>::randomUnitVector(std::mt19937 &rng) {
 //     spawn_at
 //---------------------------------------------------------
 /**
- * Places a new particle of species s at position pos,
- * respecting boundary conditions, then updates cell rates and pairwise interactions.
- * If non-periodic and pos is out of range, we do nothing (discard).
+ * @brief Places a new particle of species s at position pos.
+ * 
+ * Respects boundary conditions, then updates cell rates and pairwise interactions.
+ * If non-periodic and pos is out of range, the particle is discarded.
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
+ * @param s Species index
+ * @param inPos The desired real-space position
  */
 template <int DIM>
 void Grid<DIM>::spawn_at(int s, const std::array<double, DIM> &inPos) {
@@ -388,9 +436,14 @@ void Grid<DIM>::spawn_at(int s, const std::array<double, DIM> &inPos) {
 //     kill_at
 //---------------------------------------------------------
 /**
- * Removes exactly one particle of species s in the cell cIdx that matches 'posKill'
- * (within a small epsilon, or exactly if your coords are integral).
- * Updates pairwise interactions accordingly.
+ * @brief Removes exactly one particle of species s in the cell cIdx at the specified index.
+ * 
+ * Updates pairwise interactions and all rates accordingly.
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
+ * @param s Species index
+ * @param cIdx The cell index array
+ * @param victimIdx The index of the particle to remove within the cell's species array
  */
 template <int DIM>
 void Grid<DIM>::kill_at(int s, const std::array<int, DIM> &cIdx, int victimIdx) {
@@ -426,8 +479,15 @@ void Grid<DIM>::kill_at(int s, const std::array<int, DIM> &cIdx, int victimIdx) 
 }
 
 /**
- * Remove all pairwise interactions contributed by occupant (sVictim, victimIdx) in cell cIdx,
- * including i->j (for occupant's effect on neighbors) and j->i (neighbors' effect on occupant).
+ * @brief Removes all pairwise interactions contributed by a specific particle.
+ * 
+ * Removes both i->j (the occupant's effect on neighbors) and j->i (neighbors' effect on the occupant)
+ * interactions from the death rates.
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
+ * @param cIdx The cell index array containing the victim particle
+ * @param sVictim Species index of the victim particle
+ * @param victimIdx Index of the victim particle within the cell's species array
  */
 template <int DIM>
 void Grid<DIM>::removeInteractionsOfParticle(const std::array<int, DIM> &cIdx, int sVictim,
@@ -470,8 +530,13 @@ void Grid<DIM>::removeInteractionsOfParticle(const std::array<int, DIM> &cIdx, i
 //   placePopulation
 //---------------------------------------------------------
 /**
+ * @brief Places multiple particles for each species at specified coordinates.
+ * 
  * Convenience function that loops over a given set of coordinates for each species
- * and calls spawn_at(s, pos).  Replaces old placeInitialPopulations().
+ * and calls spawn_at(s, pos). Replaces old placeInitialPopulations().
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
+ * @param initCoords Vector of vectors containing coordinates for each species
  */
 template <int DIM>
 void Grid<DIM>::placePopulation(
@@ -488,10 +553,16 @@ void Grid<DIM>::placePopulation(
 //   spawn_random
 //---------------------------------------------------------
 /**
- * Picks a random cell (weighted by cellBirthRate) and species (weighted by cellBirthRateBySpecies),
- * then picks a random occupant in that cell as the "parent."
- * A radius is drawn from the birth kernel for that species, plus a random direction => childPos.
- * Calls spawn_at(...) with that position.
+ * @brief Performs a random birth event.
+ * 
+ * 1. Picks a random cell (weighted by cellBirthRate)
+ * 2. Picks a random species (weighted by cellBirthRateBySpecies)
+ * 3. Picks a random occupant in that cell as the "parent"
+ * 4. Draws a radius from the birth kernel for that species
+ * 5. Generates a random direction
+ * 6. Calls spawn_at(...) with the resulting position
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
  */
 template <int DIM>
 void Grid<DIM>::spawn_random() {
@@ -541,9 +612,14 @@ void Grid<DIM>::spawn_random() {
 //    kill_random
 //---------------------------------------------------------
 /**
- * Picks a random cell (weighted by cellDeathRate), random species within that cell,
- * then a random occupant within that species (weighted by per-particle deathRates[s][i]).
- * Calls kill_at(...) to remove that occupant.
+ * @brief Performs a random death event.
+ * 
+ * 1. Picks a random cell (weighted by cellDeathRate)
+ * 2. Picks a random species within that cell (weighted by cellDeathRateBySpecies)
+ * 3. Picks a random occupant within that species (weighted by per-particle deathRates[s][i])
+ * 4. Calls kill_at(...) to remove that occupant
+ * 
+ * @tparam DIM The dimension of the domain (1, 2, or 3)
  */
 template <int DIM>
 void Grid<DIM>::kill_random() {

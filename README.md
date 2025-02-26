@@ -7,6 +7,7 @@ This repository contains a C++/Cython implementation of an N-dimensional birth-d
 - Place initial populations
 - Run stochastic events (either random events or user-specified spawns/kills)
 - Inspect cell-level data (coordinates, death rates, etc.)
+- Analyze spatial patterns and population dynamics
 
 ---
 
@@ -16,26 +17,26 @@ Directory structure for this project looks like:
 
 ```
 SBDPP_sim/
-├── examples/
+├── examples/                      # Example notebooks and scripts
 ├── include/
-│   └── SpatialBirthDeath.h
+│   └── SpatialBirthDeath.h        # C++ header defining the simulator classes
 ├── src/
-│   └── SpatialBirthDeath.cpp
+│   └── SpatialBirthDeath.cpp      # C++ implementation of the simulator
 ├── simulation/
-│   ├── __init__.py
-│   └── SpatialBirthDeathWrapper.pyx
-├── requirements.txt
-├── setup.py
-├── README.md
-└── .gitignore
+│   ├── __init__.py                # Python package initialization
+│   └── SpatialBirthDeathWrapper.pyx # Cython wrapper for the C++ code
+├── requirements.txt               # Python dependencies
+├── setup.py                       # Build script for the extension module
+├── README.md                      # This documentation
+└── .gitignore                     # Git ignore file
 ```
 
-- **`include/SpatialBirthDeath.h`**: C++ header for the simulator.
-- **`src/SpatialBirthDeath.cpp`**: C++ source file with core logic.
-- **`simulation/SpatialBirthDeathWrapper.pyx`**: Cython interface to the C++ code.
-- **`setup.py`**: Build script using setuptools/Cython.
-- **`examples/`**: (Optional) example scripts or notebooks.
-- **`requirements.txt`**: Python packages required (e.g., `cython`).
+- **`include/SpatialBirthDeath.h`**: C++ header defining the Grid and Cell template classes.
+- **`src/SpatialBirthDeath.cpp`**: C++ implementation with core simulation logic.
+- **`simulation/SpatialBirthDeathWrapper.pyx`**: Cython interface that exposes the C++ code to Python.
+- **`setup.py`**: Build script using setuptools/Cython to compile the extension module.
+- **`examples/`**: Example notebooks demonstrating usage in different scenarios.
+- **`requirements.txt`**: Python packages required (e.g., `cython`, `numpy`).
 - **`README.md`**: This documentation.
 
 ---
@@ -49,8 +50,15 @@ pip install -r requirements.txt
 python setup.py build_ext --inplace
 ```
 
-This compiles and generates a platform-specific shared library (e.g., `.so` or `.pyd`) in the `simulation/` directory.  
+This compiles and generates a platform-specific shared library (e.g., `.so` on Linux/macOS or `.pyd` on Windows) in the `simulation/` directory.  
 If you change any `.cpp` or `.pyx` files, re-run `python setup.py build_ext --inplace` to rebuild.
+
+### Requirements
+
+- C++20 compatible compiler (GCC 10+, Clang 10+, MSVC 2019+)
+- Python 3.6 or higher
+- Cython 0.29 or higher
+- NumPy (for examples)
 
 ---
 
@@ -68,7 +76,7 @@ Three Python classes are provided:
 - **`PyGrid2`**: 2D simulator
 - **`PyGrid3`**: 3D simulator
 
-They share similar methods and attributes, differing mainly by coordinate dimensionality.
+They share similar methods and attributes, differing mainly by coordinate dimensionality. Each class wraps the corresponding C++ `Grid<DIM>` template class, providing a Pythonic interface to the underlying simulation engine.
 
 ### 3.1 Creating a Grid
 
@@ -78,27 +86,27 @@ A constructor for `PyGrid2` might look like:
 import simulation
 
 g2 = simulation.PyGrid2(
-    M=2,
-    areaLen=[100.0, 80.0],   # domain size in x,y
+    M=2,                     # Number of species
+    areaLen=[100.0, 80.0],   # Domain size in x,y
     cellCount=[10, 8],       # 10 x 8 cells
-    isPeriodic=False,
-    birthRates=[0.5, 0.2],   # baseline birth rates
-    deathRates=[0.1, 0.05],  # baseline death rates
-    ddMatrix=[0.01, 0.02,    # Flattened MxM matrix
-              0.02, 0.01],
-    birthX=[[0.0, 1.0], [0.0, 1.0]],
-    birthY=[[0.0, 3.0], [0.0, 2.0]],
+    isPeriodic=False,        # Non-periodic boundaries
+    birthRates=[0.5, 0.2],   # Baseline birth rates for each species
+    deathRates=[0.1, 0.05],  # Baseline death rates for each species
+    ddMatrix=[0.01, 0.02,    # Flattened MxM competition matrix
+              0.02, 0.01],   # [s1->s1, s1->s2, s2->s1, s2->s2]
+    birthX=[[0.0, 1.0], [0.0, 1.0]],  # Quantiles for birth kernel
+    birthY=[[0.0, 3.0], [0.0, 2.0]],  # Radii for birth kernel
     deathX_=[
-      [ [0.0,5.0],[0.0,5.0] ],   # s1=0 -> [ s2=0, s2=1 ]
-      [ [0.0,5.0],[0.0,5.0] ]    # s1=1 -> [ s2=0, s2=1 ]
+      [ [0.0,5.0],[0.0,5.0] ],   # s1=0 -> [ s2=0, s2=1 ] distances
+      [ [0.0,5.0],[0.0,5.0] ]    # s1=1 -> [ s2=0, s2=1 ] distances
     ],
     deathY_=[
-      [ [1.0,0.0],[2.0,0.0] ],
-      [ [2.0,0.0],[1.0,0.0] ]
+      [ [1.0,0.0],[2.0,0.0] ],   # s1=0 -> [ s2=0, s2=1 ] kernel values
+      [ [2.0,0.0],[1.0,0.0] ]    # s1=1 -> [ s2=0, s2=1 ] kernel values
     ],
-    cutoffs=[5.0, 5.0, 5.0, 5.0],  # Flattened MxM
-    seed=42,
-    rtimeLimit=3600.0
+    cutoffs=[5.0, 5.0, 5.0, 5.0],  # Interaction cutoff distances (flattened MxM)
+    seed=42,                       # Random number generator seed
+    rtimeLimit=3600.0              # Real-time limit in seconds
 )
 ```
 
@@ -108,14 +116,14 @@ g2 = simulation.PyGrid2(
 2. **areaLen** (list of floats): Domain length in each dimension.
 3. **cellCount** (list of ints): Number of cells along each dimension.
 4. **isPeriodic** (bool): Whether the domain wraps around.
-5. **birthRates** (length `M`): Baseline birth rates.
-6. **deathRates** (length `M`): Baseline death rates.
-7. **ddMatrix** (length `M*M`): Flattened pairwise competition matrix.
+5. **birthRates** (length `M`): Baseline birth rates for each species.
+6. **deathRates** (length `M`): Baseline death rates for each species.
+7. **ddMatrix** (length `M*M`): Flattened pairwise competition matrix in row-major order.
 8. **birthX**, **birthY** (list-of-lists of floats): Radial birth kernel data per species.
-9. **deathX_**, **deathY_** (3-level nested lists): Radial death kernel for each `(s1, s2)`.
-10. **cutoffs** (length `M*M`): Cutoff distances for each `(s1, s2)`.
-11. **seed** (int): Random number seed.
-12. **rtimeLimit** (float): Max real-time limit for certain run methods.
+9. **deathX_**, **deathY_** (3-level nested lists): Radial death kernel for each species pair `(s1, s2)`.
+10. **cutoffs** (length `M*M`): Cutoff distances for each species pair interaction.
+11. **seed** (int): Random number generator seed.
+12. **rtimeLimit** (float): Maximum real-time limit in seconds for simulation runs.
 
 ### 3.2 Placing Initial Populations
 
@@ -129,13 +137,22 @@ Example for 2D, with 2 species:
 
 ```python
 initCoords = [
-    [ [10.0, 20.0], [30.0, 40.0] ],  # species 0
-    [ [ 5.0,  2.0], [ 7.0,  9.0] ]   # species 1
+    [ [10.0, 20.0], [30.0, 40.0] ],  # species 0 coordinates
+    [ [ 5.0,  2.0], [ 7.0,  9.0] ]   # species 1 coordinates
 ]
 g2.placePopulation(initCoords)
 ```
 
+You can also place individual particles using the `spawn_at(species_idx, position)` method:
+
+```python
+# Add a new particle of species 0 at position [15.0, 25.0]
+g2.spawn_at(0, [15.0, 25.0])
+```
+
 ### 3.3 Running Events
+
+The simulator provides several methods to run events:
 
 - **`make_event()`**: Perform one stochastically chosen birth or death event.
 - **`spawn_random()`**: Force one random birth event.
@@ -154,6 +171,8 @@ g2.run_for(10.0)
 print("After run_for(10.0), time =", g2.time)
 ```
 
+The simulation advances in time according to a continuous-time Markov process, where the waiting time between events follows an exponential distribution with rate parameter equal to the sum of all birth and death rates.
+
 ### 3.4 Cell-Level Data
 
 Each grid cell can be queried via:
@@ -163,7 +182,20 @@ Each grid cell can be queried via:
 - **`get_cell_population(cell_index)`**: Returns a list with the population of each species in that cell.
 - **`get_cell_birth_rate(cell_index)`** and **`get_cell_death_rate(cell_index)`**: Returns aggregate rates for that cell.
 
-Cells are indexed `0` to `total_num_cells - 1`. In 2D or 3D, the indexing is flattened. See the C++ `flattenIdx` method for details.
+Cells are indexed from `0` to `total_num_cells - 1`. In 2D or 3D, the indexing is flattened in row-major order. For example, in 2D with cell counts `[nx, ny]`, the cell at position `(i, j)` has index `i + j*nx`.
+
+```python
+# Get the total number of cells
+num_cells = g2.get_num_cells()
+
+# Get population counts for each species in cell 5
+pop_in_cell_5 = g2.get_cell_population(5)
+print(f"Cell 5 has {pop_in_cell_5[0]} particles of species 0 and {pop_in_cell_5[1]} of species 1")
+
+# Get coordinates of all particles of species 0 in cell 5
+coords_s0_cell5 = g2.get_cell_coords(5, 0)
+print(f"Coordinates of species 0 in cell 5: {coords_s0_cell5}")
+```
 
 ### 3.5 Retrieving All Particle Coordinates
 
@@ -179,6 +211,18 @@ Example:
 all_coords = g2.get_all_particle_coords()
 for s_idx, coords_list in enumerate(all_coords):
     print(f"Species {s_idx} has {len(coords_list)} particles.")
+    
+# Plot the positions of all particles (for 2D)
+import matplotlib.pyplot as plt
+for s_idx, coords_list in enumerate(all_coords):
+    x = [pos[0] for pos in coords_list]
+    y = [pos[1] for pos in coords_list]
+    plt.scatter(x, y, label=f"Species {s_idx}")
+plt.legend()
+plt.xlabel("x")
+plt.ylabel("y")
+plt.title("Particle positions")
+plt.show()
 ```
 
 ---
@@ -188,7 +232,7 @@ for s_idx, coords_list in enumerate(all_coords):
 The simulator uses **radially symmetric** kernels for both births and deaths, specified as piecewise functions `(X, Y)` that are linearly interpolated at runtime.
 
 - **Birth kernels** allow the simulator to sample a distance from the parent to place a new individual.  
-- **Death kernels** define how the presence of a neighbor at distance `r` modifies an individual’s death rate.
+- **Death kernels** define how the presence of a neighbor at distance `r` modifies an individual's death rate.
 
 ### 4.1 Birth Kernels (Inverse Radial CDF)
 
@@ -261,9 +305,9 @@ birthY_3d = [rvals.tolist()]
 
 ### 4.2 Death Kernels (Normalized in 1D, 2D, 3D)
 
-For each pair `(s1, s2)`, you must pass `(deathX[s1][s2], deathY[s1][s2])`, plus a **cutoff** in `cutoffs[s1*M + s2]`. If two individuals of species `s1` and `s2` are at distance `r` (within the cutoff), the contribution to occupant j’s death rate is `dd[s1][s2] * kernel(r)` (interpolated from `(X, Y)`).
+For each pair `(s1, s2)`, you must pass `(deathX[s1][s2], deathY[s1][s2])`, plus a **cutoff** in `cutoffs[s1*M + s2]`. If two individuals of species `s1` and `s2` are at distance `r` (within the cutoff), the contribution to occupant j's death rate is `dd[s1][s2] * kernel(r)` (interpolated from `(X, Y)`).
 
-**Important**: The model assumes these kernels are **normalized** when integrated with respect to the dimension’s volume element:
+**Important**: The model assumes these kernels are **normalized** when integrated with respect to the dimension's volume element:
 
 ```
 1D:  ∫(0..∞) K(r) dr = 1
@@ -271,7 +315,7 @@ For each pair `(s1, s2)`, you must pass `(deathX[s1][s2], deathY[s1][s2])`, plus
 3D:  ∫(0..∞) 4π r^2 K(r) dr = 1
 ```
 
-Such normalization ensures that if `dd[s1][s2] = 1`, the total “average” effect is 1 over the domain (or up to the cutoff).
+Such normalization ensures that if `dd[s1][s2] = 1`, the total "average" effect is 1 over the domain (or up to the cutoff).
 
 #### Example: 2D Standard Normal Kernel
 
@@ -294,7 +338,7 @@ Discretize up to some `max_r` (the cutoff):
 import numpy as np
 
 def normal_2d_kernel(r, sigma=1.0):
-    return 1 / (2 * np.pi * sigma) * np.exp(-0.5*(r**2)/(sigma**2))
+    return 1 / (2 * np.pi * sigma**2) * np.exp(-0.5*(r**2)/(sigma**2))
 
 max_r = 5.0
 N = 501
@@ -327,8 +371,8 @@ where the constant is chosen so the integral over x,y,z is 1. For instance:
 import numpy as np
 
 def normal_3d_kernel(r, sigma=1.0):
-    # Approximates the correct factor for 3D normalization
-    c = 1 / (2 * np.pi * sigma)**(3/2)
+    # The correct normalization factor for 3D Gaussian
+    c = 1 / ((2 * np.pi)**(3/2) * sigma**3)
     return c * np.exp(-0.5*(r**2)/(sigma**2)) 
 
 max_r = 5.0
@@ -351,36 +395,50 @@ A minimal usage example in 2D with no competition might look like:
 import simulation
 
 g2 = simulation.PyGrid2(
-    M=1,
-    areaLen=[25.0, 25.0],
-    cellCount=[25, 25],
-    isPeriodic=True,
-    birthRates=[1.0],
-    deathRates=[0.0],
-    ddMatrix=[0.0],  # single-species => 1x1
-    # trivial birth kernel from 0..1 -> radius 0..2
+    M=1,                      # Single species
+    areaLen=[25.0, 25.0],     # 25x25 domain
+    cellCount=[25, 25],       # 25x25 grid of cells
+    isPeriodic=True,          # Periodic boundaries
+    birthRates=[1.0],         # Birth rate = 1.0
+    deathRates=[0.0],         # No baseline death
+    ddMatrix=[0.0],           # No competition (single-species => 1x1 matrix)
+    # Simple linear birth kernel from 0..1 -> radius 0..2
     birthX=[[0.0, 1.0]],
     birthY=[[0.0, 2.0]],
-    # no competition => death kernel always 0
+    # No competition => death kernel always 0
     deathX_=[ [ [0.0, 5.0] ] ],
     deathY_=[ [ [0.0, 0.0] ] ],
-    cutoffs=[5.0],
-    seed=42,
-    rtimeLimit=3600.0
+    cutoffs=[5.0],            # Cutoff distance
+    seed=42,                  # Random seed for reproducibility
+    rtimeLimit=3600.0         # 1 hour real-time limit
 )
 
+# Place initial population
 initCoords = [
-  [ [2.0, 5.0], [10.0, 10.0], [20.0, 8.0] ]
+  [ [2.0, 5.0], [10.0, 10.0], [20.0, 8.0] ]  # 3 particles of species 0
 ]
 g2.placePopulation(initCoords)
 
+# Run some events and track population
 print("Initial pop:", g2.total_population)
 for i in range(5):
     g2.make_event()
     print(f"After event {i+1}, time={g2.time:.3f}, pop={g2.total_population}")
 
+# Get all particle coordinates
 allcoords = g2.get_all_particle_coords()
-print("All coords (2D):", allcoords)
+print(f"Final population: {len(allcoords[0])} particles")
+
+# Visualize the results (if using in a notebook)
+import matplotlib.pyplot as plt
+x = [pos[0] for pos in allcoords[0]]
+y = [pos[1] for pos in allcoords[0]]
+plt.figure(figsize=(8, 8))
+plt.scatter(x, y, alpha=0.7)
+plt.xlim(0, 25)
+plt.ylim(0, 25)
+plt.title(f"Particle positions at time {g2.time:.2f}")
+plt.show()
 ```
 
 ---
@@ -392,4 +450,3 @@ print("All coords (2D):", allcoords)
 - Please open issues or pull requests to improve this simulator!
 
 Enjoy simulating your spatial birth‐death processes!
-```
