@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def simulate_spatial_birth_death(
+def SDESimulator(
         L=10.0,  # domain length
         N=1000,  # number of spatial grid points
         dt=0.01,  # time step
@@ -103,7 +103,7 @@ def simulate_spatial_birth_death(
         noise = np.sqrt(Gamma) * np.random.normal(0, 1, size=N)
 
         # Euler-Maruyama update
-        phi = phi + dt * drift + np.sqrt(dt) * noise
+        phi = phi + dt * drift + noise * np.sqrt(dt)
 
         # Enforce non-negativity of density
         phi = np.maximum(phi, 0)
