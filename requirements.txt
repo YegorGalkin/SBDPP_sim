@@ -23,6 +23,3 @@ six==1.17.0
     # via python-dateutil
 tzdata==2025.1
     # via pandas
-
-# The following packages are considered to be unsafe in a requirements file:
-# setuptools

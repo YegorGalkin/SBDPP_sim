@@ -2,4 +2,3 @@ Cython>=3.0.12
 numpy>=2.2.3
 scipy>=1.15.2
 pandas>=2.2.3
-setuptools>=75.8.2
