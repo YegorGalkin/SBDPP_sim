@@ -672,7 +672,6 @@ void Grid<DIM>::kill_random() {
 
     // 4) build cIdx from cellIndex
     const std::array<int, DIM> cIdx = unflattenIdx(cellIndex);
-    auto posVictim = cell.coords[s][victimIdx];
 
     // 5) kill_at(s, cIdx, victimIdx)
     kill_at(s, cIdx, victimIdx);
