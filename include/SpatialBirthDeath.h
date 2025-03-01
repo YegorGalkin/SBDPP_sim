@@ -28,7 +28,7 @@
 
 /**
  * @brief A helper that performs linear interpolation on tabulated (x,y) data.
- * 
+ *
  * @param xgdat The x-values of the tabulated data
  * @param gdat The y-values of the tabulated data
  * @param x The x-value at which to interpolate
@@ -45,10 +45,12 @@ double linearInterpolate(const std::vector<double> &xgdat, const std::vector<dou
  * index. The range parameter determines how far to search in each dimension.
  *
  * @tparam DIM The dimension of the domain (1, 2, or 3).
- * @tparam FUNC A callable type that accepts a cell index array, e.g., `[](const std::array<int,DIM> &nIdx){ ... }`.
+ * @tparam FUNC A callable type that accepts a cell index array, e.g., `[](const std::array<int,DIM>
+ * &nIdx){ ... }`.
  *
  * @param centerIdx The center cell index around which to search.
- * @param range The maximum offset in each dimension to search (search extends from centerIdx-range to centerIdx+range).
+ * @param range The maximum offset in each dimension to search (search extends from centerIdx-range
+ * to centerIdx+range).
  * @param callback The function to invoke for each neighbor cell index.
  */
 template <int DIM, typename FUNC>
@@ -242,14 +244,14 @@ public:
      * @return Flattened one-dimensional index
      */
     int flattenIdx(const std::array<int, DIM> &idx) const;
-    
+
     /**
      * @brief Converts a flat index to a multi-dimensional cell index
      * @param cellIndex Flattened one-dimensional index
      * @return Multi-dimensional cell index
      */
     std::array<int, DIM> unflattenIdx(int cellIndex) const;
-    
+
     /**
      * @brief Wraps or clamps an index in a specific dimension
      * @param i The index to wrap/clamp
@@ -257,14 +259,14 @@ public:
      * @return The wrapped/clamped index
      */
     int wrapIndex(int i, int dim) const;
-    
+
     /**
      * @brief Checks if a multi-dimensional index is within the domain
      * @param idx Multi-dimensional index to check
      * @return true if index is within domain, false otherwise
      */
     bool inDomain(const std::array<int, DIM> &idx) const;
-    
+
     /**
      * @brief Gets a reference to the cell at the given raw index (handles wrapping)
      * @param raw Raw multi-dimensional index (may be outside domain if periodic)
@@ -280,7 +282,7 @@ public:
      * @return The radius corresponding to the quantile
      */
     double evalBirthKernel(int s, double x) const;
-    
+
     /**
      * @brief Evaluates the death kernel for a species pair at a given distance
      * @param s1 First species index
@@ -293,7 +295,7 @@ public:
     /**
      * @brief Create a random unit vector in DIM dimensions.
      *        (In 1D, returns either +1 or -1).
-     * 
+     *
      * @param rng Random number generator
      * @return A random unit vector
      */
@@ -401,7 +403,7 @@ public:
      *
      * For each species s (0 <= s < M), returns a vector of particle coordinates.
      * The return type is a vector (per species) of std::array<double, DIM>.
-     * 
+     *
      * @return A vector of vectors containing coordinates for each particle of each species
      */
     std::vector<std::vector<std::array<double, DIM> > > get_all_particle_coords() const;
@@ -412,7 +414,7 @@ public:
      * For each species s (0 <= s < M), returns a vector of particle death rates.
      * The return type is a vector (per species) of doubles.
      * The order matches the order of coordinates returned by get_all_particle_coords().
-     * 
+     *
      * @return A vector of vectors containing death rates for each particle of each species
      */
     std::vector<std::vector<double> > get_all_particle_death_rates() const;
