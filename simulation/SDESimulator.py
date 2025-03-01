@@ -13,6 +13,7 @@ def SDESimulator(
         phi_0=None,
         sigma_m=1.0,  # standard deviation for dispersal (birth) kernel
         sigma_w=0.1,  # standard deviation for competition kernel
+        seed=None,  # random number generator seed
 ):
     """
     Simulate a spatial birth-death-competition model with multiplicative noise,
@@ -42,6 +43,8 @@ def SDESimulator(
         Standard deviation of the dispersal (birth) kernel.
     sigma_w : float
         Standard deviation of the competition kernel.
+    seed : int, optional
+        Random number generator seed for reproducibility.
 
     Returns
     -------
@@ -78,6 +81,10 @@ def SDESimulator(
         conv = np.real(np.fft.ifft(phi_fft * kernel_fft)) * dx
         return conv
 
+    # Set random seed if provided
+    if seed is not None:
+        np.random.seed(seed)
+        
     if phi_0 is None:
         # Initial condition: sample from a Poisson point process (PPP)
         n_init = np.random.poisson(lam * dx, size=N)
