@@ -11,6 +11,7 @@ simulations in 1, 2, or 3 dimensions.
 from libcpp.vector cimport vector
 from libcpp cimport bool
 from libc.stdlib cimport malloc, free
+from libc.stddef cimport size_t
 
 #######################################################
 # 1) Declare std::array<T,N> for needed combinations
@@ -679,9 +680,9 @@ cdef class PyGrid1:
             contains the x-coordinate (a float) for every particle.
         """
         cdef vector[vector[arrayDouble1]] c_all = self.cpp_grid.get_all_particle_coords()
-        cdef int ns = c_all.size()
+        cdef size_t ns = c_all.size()
         py_out = []
-        cdef int i, j
+        cdef size_t i, j
         for i in range(ns):
             species_coords = []
             for j in range(c_all[i].size()):
@@ -700,9 +701,9 @@ cdef class PyGrid1:
             contains the death rate for every particle of that species.
         """
         cdef vector[vector[double]] c_all = self.cpp_grid.get_all_particle_death_rates()
-        cdef int ns = c_all.size()
+        cdef size_t ns = c_all.size()
         py_out = []
-        cdef int i, j
+        cdef size_t i, j
         for i in range(ns):
             species_rates = []
             for j in range(c_all[i].size()):
@@ -904,9 +905,9 @@ cdef class PyGrid2:
             contains the [x, y] coordinates of a particle.
         """
         cdef vector[vector[arrayDouble2]] c_all = self.cpp_grid.get_all_particle_coords()
-        cdef int ns = c_all.size()
+        cdef size_t ns = c_all.size()
         py_out = []
-        cdef int i, j
+        cdef size_t i, j
         for i in range(ns):
             species_coords = []
             for j in range(c_all[i].size()):
@@ -924,9 +925,9 @@ cdef class PyGrid2:
             contains the death rate for every particle of that species.
         """
         cdef vector[vector[double]] c_all = self.cpp_grid.get_all_particle_death_rates()
-        cdef int ns = c_all.size()
+        cdef size_t ns = c_all.size()
         py_out = []
-        cdef int i, j
+        cdef size_t i, j
         for i in range(ns):
             species_rates = []
             for j in range(c_all[i].size()):
@@ -1129,9 +1130,9 @@ cdef class PyGrid3:
             contains the [x, y, z] coordinates of a particle.
         """
         cdef vector[vector[arrayDouble3]] c_all = self.cpp_grid.get_all_particle_coords()
-        cdef int ns = c_all.size()
+        cdef size_t ns = c_all.size()
         py_out = []
-        cdef int i, j
+        cdef size_t i, j
         for i in range(ns):
             species_coords = []
             for j in range(c_all[i].size()):
@@ -1151,9 +1152,9 @@ cdef class PyGrid3:
             contains the death rate for every particle of that species.
         """
         cdef vector[vector[double]] c_all = self.cpp_grid.get_all_particle_death_rates()
-        cdef int ns = c_all.size()
+        cdef size_t ns = c_all.size()
         py_out = []
-        cdef int i, j
+        cdef size_t i, j
         for i in range(ns):
             species_rates = []
             for j in range(c_all[i].size()):
