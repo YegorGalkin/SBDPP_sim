@@ -19,6 +19,12 @@
 
 double linearInterpolate(const std::vector<double> &xdat, const std::vector<double> &ydat,
                          double x) {
+    if (x >= xdat.back()) {
+        return ydat.back();
+    }
+    if (x <= xdat.front()) {
+        return ydat.front();
+    }
     auto i = std::lower_bound(xdat.begin(), xdat.end(), x);  // Nearest-above index
     const size_t k = i - xdat.begin();
 
