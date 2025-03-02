@@ -60,13 +60,11 @@ def SDESimulator(
     # Spatial grid: x from -L/2 to L/2 (endpoint excluded)
     x = np.linspace(-L / 2, L / 2, N, endpoint=False)
 
-    # Build dispersal kernel: Gaussian normalized as a probability density.
-    kernel_disp = np.exp(-x ** 2 / (2 * sigma_m ** 2))
-    kernel_disp /= (np.sum(kernel_disp) * dx)
+    # Build dispersal kernel: raw Gaussian (amplitude scales as 1/(sqrt(2pi)*sigma_w)).
+    kernel_disp = np.exp(-x ** 2 / (2 * sigma_m ** 2)) / (np.sqrt(2 * np.pi) * sigma_m)
 
     # Build competition kernel: raw Gaussian (amplitude scales as 1/(sqrt(2pi)*sigma_w))
     kernel_comp = np.exp(-x ** 2 / (2 * sigma_w ** 2)) / (np.sqrt(2 * np.pi) * sigma_w)
-    # Do not renormalize kernel_comp further.
 
     # Shift kernels for FFT convolution (centered at index 0)
     kernel_disp_fft = np.fft.fft(np.fft.ifftshift(kernel_disp))
@@ -104,7 +102,6 @@ def SDESimulator(
 
         # Noise amplitude (variance per dt)
         Gamma = b * birth_conv + d * phi + dd * phi * comp_conv
-        Gamma = np.maximum(Gamma, 0)
 
         # Generate multiplicative Gaussian noise (independent per grid cell)
         noise = np.sqrt(Gamma) * np.random.normal(0, 1, size=N)
