@@ -109,6 +109,7 @@ for idx, param_set in enumerate(parameter_sets, start=1):
             
             ax.set_xticks(np.arange(0, max_time + 1, 1))
             ax.set_xlim(0, max_time)
+            ax.set_ylim(-50, 50)
             ax.set_xlabel("Time")
             ax.set_ylabel("((SDE - IBM) / mean(IBM)) %")
             ax.set_title(f"σ_m = {sigma_m}, σ_w = {sigma_w}", fontsize=10)
