@@ -104,7 +104,7 @@ def SDESimulator(
         Gamma = b * birth_conv + d * phi + dd * phi * comp_conv
 
         # Generate multiplicative Gaussian noise (independent per grid cell)
-        noise = np.sqrt(Gamma) * np.random.normal(0, 1, size=N)
+        noise = np.sqrt(np.maximum(Gamma, 0)) * np.random.normal(0, 1, size=N)
 
         # Euler-Maruyama update
         phi = phi + dt * drift + noise * np.sqrt(dt)
