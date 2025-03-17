@@ -321,7 +321,7 @@ For each pair `(s1, s2)`, you must pass `(deathX[s1][s2], deathY[s1][s2])`, plus
 **Important**: The model assumes these kernels are **normalized** when integrated with respect to the dimension's volume element:
 
 ```
-1D:  ∫∫∫(-∞..∞) K(x) dx = 1
+1D:  ∫(-∞..∞) K(x) dx = 1
 2D:  ∫∫(-∞..∞)(-∞..∞) K(x,y) dx dy = 1
 3D:  ∫∫∫(-∞..∞)(-∞..∞)(-∞..∞) K(x,y,z) dx dy dz = 1
 ```
@@ -452,12 +452,4 @@ plt.title(f"Particle positions at time {g2.time:.2f}")
 plt.show()
 ```
 
----
 
-## 6. License & Contributions
-
-- **License**: [Your License Here], see `LICENSE.txt`.
-- Contributions & bug reports are welcome.  
-- Please open issues or pull requests to improve this simulator!
-
-Enjoy simulating your spatial birth‐death processes!
