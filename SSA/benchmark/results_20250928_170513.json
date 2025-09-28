@@ -1,0 +1,29 @@
+{
+  "timestamp": "20250928_170513",
+  "seed": 2025,
+  "area_length": 100.0,
+  "cell_count": 200,
+  "initial_population": 50000,
+  "warmup_events": 10000,
+  "target_events": 10000000,
+  "performed_events": 10000000,
+  "elapsed_seconds": 140.30129500001203,
+  "throughput_events_per_second": 71275.17960542804,
+  "first_segment": {
+    "target_events": 1000000,
+    "performed_events": 1000000,
+    "elapsed_seconds": 16.70187100005569,
+    "throughput_events_per_second": 59873.53153408176
+  },
+  "last_segment": {
+    "target_events": 9000000,
+    "performed_events": 9000000,
+    "elapsed_seconds": 123.49994450021768,
+    "throughput_events_per_second": 72874.52667627827
+  },
+  "final_population": 9947,
+  "final_birth_rate": 9947.0,
+  "final_death_rate": 9803.400474898188,
+  "histogram_bins": 100,
+  "histogram_path": "C:\\Users\\radia\\PycharmProjects\\SBDPP_sim\\SSA\\benchmark\\histogram_20250928_170513.png"
+}
