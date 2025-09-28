@@ -1,8 +1,8 @@
 import os
 import sys
 
-from distutils.ccompiler import new_compiler
-from distutils.errors import DistutilsPlatformError
+from setuptools._distutils.ccompiler import new_compiler
+from setuptools._distutils.errors import DistutilsPlatformError
 from setuptools import Extension, find_packages, setup
 from Cython.Build import cythonize
 
