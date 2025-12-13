@@ -264,7 +264,7 @@ def measure_front_speed_2d(time_step: float = TIME_STEP):
         phi = (np.degrees(np.arctan2(dy, dx)) + 360.0) % 360.0
         indices = np.floor(phi / DEGREE_BIN).astype(int) % num_bins
         bin_max = np.zeros(num_bins, dtype=np.float64)
-        for idx, r in zip(indices, radii, strict=False):
+        for idx, r in zip(indices, radii):
             if r > bin_max[idx]:
                 bin_max[idx] = r
 
