@@ -198,7 +198,7 @@ def test_equal_kernels_2d_mean_field():
     ys = rng.uniform(0.0, Ly, size=exp_N)
     for x, y in zip(xs, ys):
         pos = np.array([float(x), float(y)], dtype=np.float64)
-        sim._spawn_particle_impl(0, pos, 2, False)  # species=0, EVENT_MANUAL_SPAWN=2, no trace
+        sim.spawn_particle(0, float(pos[0]) if pos.shape[0] == 1 else float(pos[0]), *(pos[1:].tolist()))
 
     mean_N, samples = _sample_mean_population(sim, warmup_events=8_000, block_events=4_000, blocks=2)
     assert abs(mean_N - exp_N) <= EQ_TOLERANCE * exp_N, (
@@ -242,7 +242,7 @@ def test_equal_kernels_3d_mean_field():
     zs = rng.uniform(0.0, Lz, size=exp_N)
     for x, y, z in zip(xs, ys, zs):
         pos = np.array([float(x), float(y), float(z)], dtype=np.float64)
-        sim._spawn_particle_impl(0, pos, 2, False)  # species=0, EVENT_MANUAL_SPAWN=2, no trace
+        sim.spawn_particle(0, float(pos[0]) if pos.shape[0] == 1 else float(pos[0]), *(pos[1:].tolist()))
 
     mean_N, samples = _sample_mean_population(sim, warmup_events=8_500, block_events=4_200, blocks=2)
     assert abs(mean_N - exp_N) <= EQ_TOLERANCE * exp_N, (
