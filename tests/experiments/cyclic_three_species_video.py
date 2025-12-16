@@ -45,7 +45,7 @@ SPECIES_COUNT = 3
 DOMAIN_SIZE = np.array([50.0, 50.0], dtype=np.float64)
 CELL_COUNT = np.array([50, 50], dtype=np.int32)
 TIME_STEP = 1.0
-TOTAL_TIME = 500.0
+TOTAL_TIME = 1000.0
 INITIAL_PER_SPECIES = 10000
 SEED = 1729
 
