@@ -29,6 +29,10 @@ class ExperimentConfig:
     # d values to sweep
     d_controls: tuple = (0.0, 1e-4, 1e-3)
     d_test_range: tuple = (0.01, 0.1, 10)  # (start, stop, num_points)
+    d_extra_ranges: tuple = ()   # Additional (start, stop, num_points) tuples for finer grids
+    
+    # Kappa fitting
+    fit_d_max: float = 0.1       # Only use d values up to this for kappa fitting
     
     # Warmup
     initial_density_frac: float = 0.1   # Start at 10% of expected
@@ -55,9 +59,18 @@ class ExperimentConfig:
         return self.n_batches * self.samples_per_batch
     
     def get_d_values(self) -> NDArray[np.float64]:
-        """Get all d values to test."""
+        """Get all d values to test, including any extra fine-grained ranges."""
         d_test = np.linspace(*self.d_test_range)
-        return np.concatenate([np.array(self.d_controls), d_test])
+        all_d = np.concatenate([np.array(self.d_controls), d_test])
+        
+        # Add extra ranges if specified
+        for extra_range in self.d_extra_ranges:
+            extra_d = np.linspace(*extra_range)
+            all_d = np.concatenate([all_d, extra_d])
+        
+        # Sort and remove duplicates
+        all_d = np.unique(all_d)
+        return all_d
     
     def n_expected(self, d: float) -> float:
         """Expected mean-field density."""
@@ -116,6 +129,9 @@ def reduced_dispersal_config() -> ExperimentConfig:
     Reduced dispersal configuration.
     sigma = 0.5 (2x smaller)
     PCF grid 2x smaller: dr = 0.05, r_max = 2.5
+    
+    Includes finer d grid in 0.001-0.01 range for better kappa estimation.
+    Uses fit_d_max=0.02 to focus kappa fit on small d region.
     """
     return ExperimentConfig(
         name="reduced_dispersal",
@@ -124,15 +140,18 @@ def reduced_dispersal_config() -> ExperimentConfig:
         sigma=0.5,
         d_controls=(0.0, 1e-4, 1e-3),
         d_test_range=(0.01, 0.1, 10),
+        d_extra_ranges=((0.001, 0.01, 10),),  # Finer grid in 0.001-0.01 range
+        fit_d_max=0.02,  # Only use d <= 0.02 for kappa fitting
         dr=0.05,  # 2x smaller
         r_max=2.5,  # 2x smaller
+        n_batches=1000,
+        samples_per_batch=100,
     )
 
 
 def small_dprime_01_config() -> ExperimentConfig:
     """
     Reduced d' configuration: d'=0.1, L=100.
-    All d values reduced 10x proportionally.
     Expected pop at d=0: b/d' * L = 1.0/0.1 * 100 = 1000
     """
     return ExperimentConfig(
@@ -141,29 +160,32 @@ def small_dprime_01_config() -> ExperimentConfig:
         d_prime=0.1,  # 10x smaller
         sigma=1.0,
         L=100.0,  # Smaller domain
-        d_controls=(0.0, 1e-5, 1e-4),  # 10x smaller
-        d_test_range=(0.001, 0.01, 10),  # 10x smaller
+        d_controls=(0.0, 1e-4, 1e-3),
+        d_test_range=(0.01, 0.1, 10),  
         dr=0.1,
         r_max=5.0,
+        n_batches=1000,    
+        samples_per_batch=100,
     )
 
 
-def small_dprime_001_config() -> ExperimentConfig:
+def small_dprime_005_config() -> ExperimentConfig:
     """
-    Very reduced d' configuration: d'=0.01, L=50.
-    All d values reduced 100x proportionally.
-    Expected pop at d=0: b/d' * L = 1.0/0.01 * 50 = 5000
+    Reduced d' configuration: d'=0.05, L=100.
+    Expected pop at d=0: b/d' * L = 1.0/0.05 * 100 = 2000
     """
     return ExperimentConfig(
-        name="small_dprime_001",
+        name="small_dprime_005",
         b=1.0,
-        d_prime=0.01,  # 100x smaller
+        d_prime=0.05,  # 20x smaller
         sigma=1.0,
-        L=50.0,  # Smaller domain
-        d_controls=(0.0, 1e-6, 1e-5),  # 100x smaller
-        d_test_range=(0.0001, 0.001, 10),  # 100x smaller
+        L=100.0,  # Domain to keep ~2000 particles
+        d_controls=(0.0, 1e-4, 1e-3),
+        d_test_range=(0.01, 0.1, 10),  
         dr=0.1,
         r_max=5.0,
+        n_batches=1000,    
+        samples_per_batch=100,
     )
 
 
@@ -173,7 +195,7 @@ CONFIGS = {
     "increased_dispersal": increased_dispersal_config,
     "reduced_dispersal": reduced_dispersal_config,
     "small_dprime_01": small_dprime_01_config,
-    "small_dprime_001": small_dprime_001_config,
+    "small_dprime_005": small_dprime_005_config,
 }
 
 
