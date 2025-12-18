@@ -29,7 +29,7 @@ from tqdm import tqdm
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from SSA.numba_sim_normal import make_normal_ssa_1d, SSANormalState
-from SSA.experiments.configs import ExperimentConfig, get_config, list_configs, baseline_config
+from SSA.experiments.small_d.configs import ExperimentConfig, get_config, list_configs, baseline_config
 
 
 # =============================================================================
