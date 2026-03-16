@@ -12,11 +12,6 @@ from numpy.typing import NDArray
 from numba import njit, types
 from numba.experimental import jitclass
 
-EVENT_BIRTH = np.int32(0)
-EVENT_DEATH = np.int32(1)
-EVENT_MANUAL_SPAWN = np.int32(2)
-EVENT_MANUAL_KILL = np.int32(3)
-
 @njit(cache=True, inline='always')
 def _distance_nd(pos1: NDArray, pos2: NDArray, area: NDArray, ndim: int, periodic: bool) -> float:
     """Calculate distance with optional periodic boundaries."""
@@ -103,13 +98,6 @@ ssa_normal_spec = [
     ("total_death_rate", types.float64),
     ("time", types.float64),
     ("event_count", types.int64),
-    ("trace_enabled", types.boolean),
-    ("trace_capacity", types.int64),
-    ("trace_count", types.int64),
-    ("trace_type", types.Array(types.int32, 1, "C")),
-    ("trace_species", types.Array(types.int32, 1, "C")),
-    ("trace_time", types.Array(types.float64, 1, "C")),
-    ("trace_pos", types.Array(types.float64, 2, "C")),
 ]
 
 @jitclass(ssa_normal_spec)
@@ -120,8 +108,7 @@ class SSANormalState:
                  cell_counts: NDArray, periodic: bool, capacity: np.int64,
                  cell_capacity: np.int32, seed: np.int64,
                  b: NDArray, d: NDArray, dd: NDArray, birth_std: NDArray,
-                 death_std: NDArray, death_cull_sigmas: float,
-                 trace_enabled: bool, trace_capacity: np.int64):
+                 death_std: NDArray, death_cull_sigmas: float):
         self.ndim = ndim
         self.species_count = species_count
         self.area_size = area_size
@@ -172,21 +159,6 @@ class SSANormalState:
         self.total_death_rate = 0.0
         self.time = 0.0
         self.event_count = np.int64(0)
-        
-        # Trace
-        self.trace_enabled = trace_enabled
-        self.trace_capacity = trace_capacity
-        self.trace_count = np.int64(0)
-        if trace_enabled:
-            self.trace_type = np.empty(trace_capacity, dtype=np.int32)
-            self.trace_species = np.empty(trace_capacity, dtype=np.int32)
-            self.trace_time = np.empty(trace_capacity, dtype=np.float64)
-            self.trace_pos = np.empty((trace_capacity, ndim), dtype=np.float64)
-        else:
-            self.trace_type = np.empty(0, dtype=np.int32)
-            self.trace_species = np.empty(0, dtype=np.int32)
-            self.trace_time = np.empty(0, dtype=np.float64)
-            self.trace_pos = np.empty((0, ndim), dtype=np.float64)
         
         if seed >= 0:
             np.random.seed(int(seed))
@@ -240,23 +212,13 @@ class SSANormalState:
         self.cell_particles = new_cp
         self.cell_capacity = new
     
-    def _record_trace(self, etype: int, sp: int, pos: NDArray) -> None:
-        if self.trace_enabled and self.trace_count < self.trace_capacity:
-            idx = self.trace_count
-            self.trace_type[idx] = etype
-            self.trace_species[idx] = sp
-            self.trace_time[idx] = self.time
-            for d in range(self.ndim):
-                self.trace_pos[idx, d] = pos[d]
-            self.trace_count += 1
-    
     def spawn_particle(self, species: int, x: float, y: float = 0.0, z: float = 0.0) -> bool:
         """Spawn particle at position."""
         pos = np.empty(self.ndim, dtype=np.float64)
         pos[0] = x
         if self.ndim >= 2: pos[1] = y
         if self.ndim >= 3: pos[2] = z
-        return self._spawn_impl(species, pos, EVENT_MANUAL_SPAWN, False)
+        return self._spawn_impl(species, pos)
     
     def spawn_random(self, species: int, count: int = 1) -> int:
         """Spawn particles at random uniform positions."""
@@ -265,22 +227,11 @@ class SSANormalState:
             pos = np.empty(self.ndim, dtype=np.float64)
             for d in range(self.ndim):
                 pos[d] = np.random.uniform(0.0, self.area_size[d])
-            if self._spawn_impl(species, pos, EVENT_MANUAL_SPAWN, False):
+            if self._spawn_impl(species, pos):
                 spawned += 1
         return spawned
     
-    def spawn_random_traced(self, species: int, count: int = 1) -> int:
-        """Spawn particles at random positions with trace."""
-        spawned = 0
-        for _ in range(count):
-            pos = np.empty(self.ndim, dtype=np.float64)
-            for d in range(self.ndim):
-                pos[d] = np.random.uniform(0.0, self.area_size[d])
-            if self._spawn_impl(species, pos, EVENT_MANUAL_SPAWN, True):
-                spawned += 1
-        return spawned
-    
-    def _spawn_impl(self, species: int, pos: NDArray, etype: int, trace: bool) -> bool:
+    def _spawn_impl(self, species: int, pos: NDArray) -> bool:
         """Internal spawn implementation."""
         if self.population >= self.capacity:
             self._double_capacity()
@@ -318,8 +269,6 @@ class SSANormalState:
             self.cell_death_rate[cell_id] += added
             self.total_death_rate += added
         
-        if trace:
-            self._record_trace(etype, species, pos)
         return True
     
     def _compute_interactions_spawn(self, pid: int, species: int, cell_id: int, pos: NDArray) -> float:
@@ -420,7 +369,7 @@ class SSANormalState:
     
     def kill_particle_index(self, pid: int) -> bool:
         """Kill particle by index."""
-        return self._kill_impl(pid, EVENT_MANUAL_KILL, False)
+        return self._kill_impl(pid)
     
     def kill_random(self, count: int = 1) -> int:
         """Kill random particles uniformly."""
@@ -429,22 +378,11 @@ class SSANormalState:
             if self.population <= 0:
                 break
             idx = int(np.random.randint(0, int(self.population)))
-            if self._kill_impl(idx, EVENT_MANUAL_KILL, False):
+            if self._kill_impl(idx):
                 killed += 1
         return killed
     
-    def kill_random_traced(self, count: int = 1) -> int:
-        """Kill random particles with trace."""
-        killed = 0
-        for _ in range(count):
-            if self.population <= 0:
-                break
-            idx = int(np.random.randint(0, int(self.population)))
-            if self._kill_impl(idx, EVENT_MANUAL_KILL, True):
-                killed += 1
-        return killed
-    
-    def _kill_impl(self, pid: int, etype: int, trace: bool) -> bool:
+    def _kill_impl(self, pid: int) -> bool:
         """Internal kill implementation."""
         if pid < 0 or pid >= self.population:
             return False
@@ -503,8 +441,6 @@ class SSANormalState:
         if self.total_death_rate < 0.0 and self.total_death_rate > -1e-9:
             self.total_death_rate = 0.0
         
-        if trace:
-            self._record_trace(etype, species, pos)
         return True
     
     def _compute_interactions_kill(self, pid: int, species: int, cell_id: int, pos: NDArray) -> None:
@@ -591,7 +527,7 @@ class SSANormalState:
         for d in range(self.ndim):
             child_pos[d] = self.positions[parent, d] + np.random.normal(0.0, std)
         
-        return self._spawn_impl(species, child_pos, EVENT_BIRTH, self.trace_enabled)
+        return self._spawn_impl(species, child_pos)
     
     def attempt_death_event(self) -> bool:
         """Attempt death event."""
@@ -617,7 +553,7 @@ class SSANormalState:
         if victim < 0:
             return False
         
-        return self._kill_impl(victim, EVENT_DEATH, self.trace_enabled)
+        return self._kill_impl(victim)
     
     def run_events(self, max_events: int) -> int:
         """Run specified number of events."""
@@ -701,8 +637,7 @@ def make_normal_ssa_1d(
     birth_std: Sequence[float], death_std: Sequence[Sequence[float]],
     *, death_cull_sigmas: float = 5.0,
     cell_count: int | None = None, is_periodic: bool = False,
-    seed: int | None = None, trace_enabled: bool = False,
-    trace_capacity: int = 10000,
+    seed: int | None = None,
 ) -> SSANormalState:
     """Create 1D Normal SSA state."""
     n = int(M)
@@ -727,8 +662,7 @@ def make_normal_ssa_1d(
         np.int32(1), np.int32(n), area, cells, is_periodic,
         np.int64(capacity), np.int32(cell_cap),
         np.int64(seed if seed is not None else -1),
-        b, d, dd, bs, ds, death_cull_sigmas,
-        trace_enabled, np.int64(trace_capacity)
+        b, d, dd, bs, ds, death_cull_sigmas
     )
 
 
@@ -739,8 +673,7 @@ def make_normal_ssa_2d(
     birth_std: Sequence[float], death_std: Sequence[Sequence[float]],
     *, death_cull_sigmas: float = 5.0,
     cell_counts: tuple[int, int] | None = None, is_periodic: bool = False,
-    seed: int | None = None, trace_enabled: bool = False,
-    trace_capacity: int = 10000,
+    seed: int | None = None,
 ) -> SSANormalState:
     """Create 2D Normal SSA state."""
     n = int(M)
@@ -765,8 +698,7 @@ def make_normal_ssa_2d(
         np.int32(2), np.int32(n), area, cells, is_periodic,
         np.int64(capacity), np.int32(cell_cap),
         np.int64(seed if seed is not None else -1),
-        b, d, dd, bs, ds, death_cull_sigmas,
-        trace_enabled, np.int64(trace_capacity)
+        b, d, dd, bs, ds, death_cull_sigmas
     )
 
 
@@ -777,8 +709,7 @@ def make_normal_ssa_3d(
     birth_std: Sequence[float], death_std: Sequence[Sequence[float]],
     *, death_cull_sigmas: float = 5.0,
     cell_counts: tuple[int, int, int] | None = None, is_periodic: bool = False,
-    seed: int | None = None, trace_enabled: bool = False,
-    trace_capacity: int = 10000,
+    seed: int | None = None,
 ) -> SSANormalState:
     """Create 3D Normal SSA state."""
     n = int(M)
@@ -803,8 +734,7 @@ def make_normal_ssa_3d(
         np.int32(3), np.int32(n), area, cells, is_periodic,
         np.int64(capacity), np.int32(cell_cap),
         np.int64(seed if seed is not None else -1),
-        b, d, dd, bs, ds, death_cull_sigmas,
-        trace_enabled, np.int64(trace_capacity)
+        b, d, dd, bs, ds, death_cull_sigmas
     )
 
 
@@ -832,8 +762,4 @@ __all__ = [
     "make_normal_ssa_2d",
     "make_normal_ssa_3d",
     "get_all_particle_coords",
-    "EVENT_BIRTH",
-    "EVENT_DEATH",
-    "EVENT_MANUAL_SPAWN",
-    "EVENT_MANUAL_KILL",
 ]

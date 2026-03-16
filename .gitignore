@@ -19,6 +19,7 @@ __pycache__/
 *.png
 *.json
 *.txt
+*.npz
 
 # Tools
 .clang-format
